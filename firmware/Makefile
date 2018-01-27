@@ -17,7 +17,7 @@ HFUSE			:= 0xFB
 EFUSE			:=
 
 # CPU speed, in Hz
-F_CPU			:= 600000UL
+F_CPU			:= 4800000UL
 
 # Architecture configuration
 GCC_ARCH		:= attiny13
