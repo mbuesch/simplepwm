@@ -41,7 +41,7 @@
 #define PWM_MAX			0xFFu
 #define PWM_POSLIM		(PWM_MAX - 10u)
 #define PWM_NEGLIM		(PWM_MIN + 0u)
-#define PWM_INVERT		true
+#define PWM_INVERT		false
 
 
 #define abs(x)			((x) >= 0 ? (x) : -(x))
@@ -59,7 +59,7 @@ static void ports_init(void)
 	DDRB = (0 << DDB5) | (0 << DDB4) | (0 << DDB3) |\
 	       (0 << DDB2) | (0 << DDB1) | (1 << DDB0);
 	PORTB = (1 << PB5) | (0 << PB4) | (1 << PB3) |\
-		(1 << PB2) | (1 << PB1) | (0 << PB0);
+		(1 << PB2) | (1 << PB1) | ((PWM_INVERT ? 1 : 0) << PB0);
 	/* Wait for pullup input capacity */
 	_delay_ms(50);
 }
@@ -95,7 +95,7 @@ ISR(ADC_vect)
 	pwm += PWM_NEGLIM;
 
 	/* Write PWM setpoint */
-	if (PWM_INVERT)
+	if (!PWM_INVERT)
 		pwm = PWM_MAX - pwm;
 	if (pwm == PWM_MIN) {
 		TCCR0A &= ~((1 << COM0A1) | (1 << COM0A0));
@@ -132,9 +132,10 @@ static void adc_init(void)
 static void pwm_init(void)
 {
 	/* Fast PWM; Prescaler 256 */
-	TCNT0 = 0;
-	OCR0A = 0;
-	OCR0B = 0;
+	TCCR0B = 0;
+	TCNT0 = PWM_INVERT ? 0 : 0xFF;
+	OCR0A = PWM_INVERT ? 0 : 0xFF;
+	OCR0B = PWM_INVERT ? 0 : 0xFF;
 	TCCR0A = (1 << COM0A1) | (1 << COM0A0) |\
 		 (0 << COM0B1) | (0 << COM0B0) |\
 		 (1 << WGM01) | (1 << WGM00);
