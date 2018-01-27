@@ -29,7 +29,7 @@
 #include <stdbool.h>
 
 
-#define ADC_HYST		4u
+#define ADC_HYST		2u
 #define ADC_MINMAX_DEADBAND	40u
 #define ADC_REAL_MIN		0u
 #define ADC_REAL_MAX		0x3FFu
@@ -39,8 +39,8 @@
 
 #define PWM_MIN			0u
 #define PWM_MAX			0xFFu
-#define PWM_POSLIM		(PWM_MAX - 10u)
 #define PWM_NEGLIM		(PWM_MIN + 0u)
+#define PWM_POSLIM		(PWM_MAX - 10u)
 #define PWM_INVERT		false
 
 
