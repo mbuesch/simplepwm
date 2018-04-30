@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <limits.h>
 
 
 #define ADC_HYST		2u
@@ -45,7 +46,85 @@
 
 
 #define abs(x)			((x) >= 0 ? (x) : -(x))
+#define min(a, b)		((a) < (b) ? (a) : (b))
+#define max(a, b)		((a) > (b) ? (a) : (b))
+#define clamp(x, min_x, max_x)	(max(min((x), (max_x)), (min_x)))
+#define ARRAY_SIZE(a)		(sizeof(a) / sizeof((a)[0]))
 
+
+struct curve_point {
+	uint16_t x;
+	uint16_t y;
+};
+#define CURVE_POINT(_x, _y)	{ .x = (uint16_t)(_x), \
+				  .y = (uint16_t)(_y), }
+
+/* Brightness curve. */
+static const struct curve_point __flash brightness_curve[] = {
+	CURVE_POINT(0,     0),
+	CURVE_POINT(8192,  1562),
+	CURVE_POINT(16384, 3836),
+	CURVE_POINT(24576, 7143),
+	CURVE_POINT(32768, 11955),
+	CURVE_POINT(40960, 18957),
+	CURVE_POINT(49152, 29145),
+	CURVE_POINT(57344, 43968),
+	CURVE_POINT(65535, 65535),
+};
+
+
+/* Calculate and interpolate a curve Y value from an X value.
+ *
+ *   y
+ *   ^       *
+ *   |       *
+ *  -|-     *
+ *   |    *
+ *   |*
+ *   +------|---->x
+ */
+static uint16_t curve_interpolate(const struct curve_point __flash *curve,
+				  uint8_t curve_size,
+				  uint16_t x)
+{
+	const struct curve_point __flash *rhp, *lhp;
+	uint8_t i;
+	uint16_t lx, ly;
+	uint16_t rx, ry;
+	uint16_t y;
+	uint32_t tmp;
+
+	if (!curve_size)
+		return x;
+
+	/* Find the curve points
+	 * left handed and right handed to the x value. */
+	lhp = &curve[0];
+	for (i = 0u; i < curve_size; i++) {
+		rhp = &curve[i];
+		if (rhp->x >= x)
+			break;
+		lhp = rhp;
+	}
+	lx = lhp->x;
+	ly = lhp->y;
+	rx = rhp->x;
+	ry = rhp->y;
+
+	/* Linear interpolation between lhp and rhp:
+	 *  ((x - lx) * ((ry - ly) / (rx - lx))) + ly  */
+	if (rx - lx == 0u) {
+		y = ly;
+	} else {
+		tmp = x - lx;
+		tmp *= ry - ly;
+		tmp /= rx - lx;
+		tmp += ly;
+		y = (uint16_t)clamp(tmp, 0u, UINT16_MAX);
+	}
+
+	return y;
+}
 
 static void ports_init(void)
 {
@@ -71,6 +150,8 @@ ISR(ADC_vect)
 	uint32_t pwm_range;
 	uint32_t adc_range;
 	uint16_t adc;
+	uint16_t scaled;
+	uint16_t transformed;
 	static uint16_t prev_adc = ADC_REAL_MIN;
 
 	/* Read the analog input */
@@ -87,11 +168,19 @@ ISR(ADC_vect)
 		adc = prev_adc;
 	prev_adc = adc;
 
-	/* Calculate PWM value from ADC value */
-	pwm_range = PWM_POSLIM - PWM_NEGLIM;
+	/* Scale ADC value to 16 bit */
 	adc_range = ADC_MAX - ADC_MIN;
 	adc -= ADC_MIN;
-	pwm = (uint8_t)(((uint32_t)adc * pwm_range) / adc_range);
+	scaled = (uint16_t)(((uint32_t)adc * 0xFFFFu) / adc_range);
+
+	/* Transform the value according to the brightness curve. */
+	transformed = curve_interpolate(brightness_curve,
+					ARRAY_SIZE(brightness_curve),
+					scaled);
+
+	/* Calculate PWM value from the transformed ADC value */
+	pwm_range = PWM_POSLIM - PWM_NEGLIM;
+	pwm = (uint8_t)(((uint32_t)transformed * pwm_range) / 0xFFFFu);
 	pwm += PWM_NEGLIM;
 
 	/* Write PWM setpoint */
