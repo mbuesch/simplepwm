@@ -35,7 +35,7 @@
 #define ADC_REAL_MAX		0x3FFu
 #define ADC_MIN			(ADC_REAL_MIN + ADC_MINMAX_DEADBAND)
 #define ADC_MAX			(ADC_REAL_MAX - ADC_MINMAX_DEADBAND)
-#define ADC_INVERT		false
+#define ADC_INVERT		true
 
 #define PWM_MIN			0u
 #define PWM_MAX			0xFFu
