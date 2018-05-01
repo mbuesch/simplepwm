@@ -11,13 +11,13 @@ BOOT_GEN_SRCS		:=
 BOOT_OFFSET		:=
 
 # Project fuse bits
-# 4.8 MHz, BOD 2.7 V, WDT on, SPIEN
-LFUSE			:= 0x59
+# 9.6 MHz, BOD 2.7 V, WDT on, SPIEN
+LFUSE			:= 0x56
 HFUSE			:= 0xFB
 EFUSE			:=
 
 # CPU speed, in Hz
-F_CPU			:= 4800000UL
+F_CPU			:= 9600000UL
 
 # Architecture configuration
 GCC_ARCH		:= attiny13
