@@ -142,7 +142,7 @@ static void port_out_set(bool high)
 	if (high)
 		PORTB |= (1 << PB0);
 	else
-		PORTB &= ~(1 << PB0);
+		PORTB &= (uint8_t)~(1 << PB0);
 }
 
 #if PWM_INVERT == false
@@ -189,7 +189,7 @@ ISR(TIM0_OVF_vect)
 	 * depends on the CPU frequency. */
 	tmp = current_pwm_setpoint;
 	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
-	delay_count = clamp(tmp, 0u, UINT16_MAX);
+	delay_count = (uint16_t)clamp(tmp, 0u, UINT16_MAX);
 
 	/* Switch the PWM output high, then delay, then switch the output low.
 	 * (It it Ok to delay for a short time in the this interrupt). */
@@ -220,7 +220,7 @@ ISR(TIM0_OVF_vect)
 	} else if (delay_count / 3u <= 255u) {
 		/* 3 clocks per loop iteration
 		 * -> divide count */
-		delay_count8 = delay_count / 3u;
+		delay_count8 = (uint8_t)(delay_count / 3u);
 
 		__asm__ __volatile__ (
 			ASM_PWM_OUT_HIGH
@@ -270,7 +270,7 @@ static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
 
 	/* Invert the PWM, if required. */
 	if (!PWM_INVERT)
-		pwm = PWM_MAX - pwm;
+		pwm = (uint8_t)(PWM_MAX - pwm);
 
 	if (irq_mode || pwm == PWM_MIN) {
 		/* In interrupt mode or of the duty cycle is zero,
@@ -311,7 +311,7 @@ static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
 	} else {
 		/* Disable the TIM0_OVF interrupt. */
 		if (TIMSK0 & (1u << TOIE0)) {
-			TIMSK0 &= ~(1u << TOIE0);
+			TIMSK0 &= (uint8_t)~(1u << TOIE0);
 			TIFR0 = (1u << TOV0);
 		}
 
@@ -347,7 +347,7 @@ ISR(ADC_vect)
 	/* Disable the ADC interrupt and
 	 * globally enable interrupts.
 	 * This allows TIM0_OVF_vect to interrupt us. */
-	ADCSRA &= ~(1u << ADIE);
+	ADCSRA &= (uint8_t)~(1u << ADIE);
 	sei();
 
 	/* Read the analog input */

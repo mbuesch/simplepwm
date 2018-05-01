@@ -35,7 +35,7 @@ INSTRUMENT_FUNC		:=
 BOOT_INSTRUMENT_FUNC	:=
 
 # Additional compiler flags
-CFLAGS			:= -Wno-conversion -Wno-type-limits
+CFLAGS			:= -Wno-conversion
 LDFLAGS			:=
 
 # Additional "clean" and "distclean" target files
