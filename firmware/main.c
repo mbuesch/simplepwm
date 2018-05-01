@@ -370,7 +370,8 @@ ISR(ADC_vect)
 	cli();
 	ADCSRA |= (1u << ADIF) | (1u << ADIE);
 
-	if (setpoint <= PWM_HIGHRES_SP_THRES) {
+	if (setpoint > 0u &&
+	    setpoint <= PWM_HIGHRES_SP_THRES) {
 		/* Small PWM duty cycles are handled with a much
 		 * much higher resolution, but with much lower frequency. */
 		pwm_set(setpoint, false, true);
