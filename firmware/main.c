@@ -46,7 +46,7 @@
 #define PWM_NEGLIM		(PWM_MIN + 0u)	/* Logical PWM mimimum */
 #define PWM_POSLIM		(PWM_MAX - 10u)	/* Logical PWM maximum */
 #define PWM_INVERT		false		/* Invert PWM signal? */
-#define PWM_HIGHRES_SP_THRES	6000u		/* High resolution threshold */
+#define PWM_HIGHRES_SP_THRES	2000u		/* High resolution threshold */
 #define PWM_SP_TO_CPU_CYC_MUL	1u		/* Setpoint to cycle multiplicator */
 #define PWM_SP_TO_CPU_CYC_DIV	1u		/* Setpoint to cycle divisor */
 
