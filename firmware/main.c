@@ -256,6 +256,7 @@ ISR(TIM0_OVF_vect)
 /* Set the PWM setpoint. */
 static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
 {
+	uint8_t cr0b;
 	uint8_t pwm;
 	uint32_t pwm_range;
 
@@ -271,41 +272,50 @@ static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
 	if (!PWM_INVERT)
 		pwm = PWM_MAX - pwm;
 
-	/* Enable the TIM0_OVF interrupt, if requested. */
-	if (irq_mode) {
-		TIMSK0 |= (1u << TOIE0);
-	} else {
-		TIMSK0 &= ~(1u << TOIE0);
-		TIFR0 = (1u << TOV0);
-	}
-
 	if (irq_mode || pwm == PWM_MIN) {
 		/* In interrupt mode or of the duty cycle is zero,
 		 * do not drive the output pin by hardware. */
-		TCCR0A = (0 << COM0A1) | (0 << COM0A0) |\
-			 (0 << COM0B1) | (0 << COM0B0) |\
-			 (1 << WGM01) | (1 << WGM00);
+		TCCR0A = (0u << COM0A1) | (0u << COM0A0) |\
+			 (0u << COM0B1) | (0u << COM0B0) |\
+			 (1u << WGM01) | (1u << WGM00);
 	} else {
 		/* Drive the output pin by hardware. */
-		TCCR0A = (1 << COM0A1) | (1 << COM0A0) |\
-			 (0 << COM0B1) | (0 << COM0B0) |\
-			 (1 << WGM01) | (1 << WGM00);
+		TCCR0A = (1u << COM0A1) | (1u << COM0A0) |\
+			 (0u << COM0B1) | (0u << COM0B0) |\
+			 (1u << WGM01) | (1u << WGM00);
 	}
 
 	/* Set the clock prescaler (fast or slow). */
 	if (clock_fast) {
-		TCCR0B = (0 << FOC0A) | (0 << FOC0B) |\
-			 (0 << WGM02) |\
-			 (0 << CS02) | (0 << CS01) | (1 << CS00);
+		cr0b = (0u << FOC0A) | (0u << FOC0B) |\
+		       (0u << WGM02) |\
+		       (0u << CS02) | (0u << CS01) | (1u << CS00);
 	} else {
-		TCCR0B = (0 << FOC0A) | (0 << FOC0B) |\
-			 (0 << WGM02) |\
-			 (1 << CS02) | (0 << CS01) | (0 << CS00);
+		cr0b = (0u << FOC0A) | (0u << FOC0B) |\
+		       (0u << WGM02) |\
+		       (1u << CS02) | (0u << CS01) | (0u << CS00);
+	}
+	if (cr0b != TCCR0B) {
+		/* Set the new prescaler. */
+		TCCR0B = cr0b;
+		/* Reset the timer counter. */
+		TCNT0 = 0u;
 	}
 
-	/* If we are in normal PWM mode,
-	 * set the PWM duty cycle in hardware. */
-	if (!irq_mode) {
+	if (irq_mode) {
+		/* Enable the TIM0_OVF interrupt. */
+		if (!(TIMSK0 & (1u << TOIE0))) {
+			TIMSK0 |= (1u << TOIE0);
+			TIFR0 = (1u << TOV0);
+		}
+	} else {
+		/* Disable the TIM0_OVF interrupt. */
+		if (TIMSK0 & (1u << TOIE0)) {
+			TIMSK0 &= ~(1u << TOIE0);
+			TIFR0 = (1u << TOV0);
+		}
+
+		/* Set the duty cycle in hardware. */
 		if (pwm == PWM_MIN) {
 			port_out_set(true);
 		} else {
