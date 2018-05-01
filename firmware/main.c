@@ -55,7 +55,6 @@
 #define abs(x)			((x) >= 0 ? (x) : -(x))
 #define min(a, b)		((a) < (b) ? (a) : (b))
 #define max(a, b)		((a) > (b) ? (a) : (b))
-#define clamp(x, min_x, max_x)	(max(min((x), (max_x)), (min_x)))
 #define ARRAY_SIZE(a)		(sizeof(a) / sizeof((a)[0]))
 
 #define OUTPUT_HIGH		(PWM_INVERT ? false : true)
@@ -130,7 +129,7 @@ static uint16_t curve_interpolate(const struct curve_point __flash *curve,
 		tmp *= ry - ly;
 		tmp /= rx - lx;
 		tmp += ly;
-		y = (uint16_t)clamp(tmp, 0u, UINT16_MAX);
+		y = (uint16_t)min(tmp, UINT16_MAX);
 	}
 
 	return y;
@@ -189,7 +188,7 @@ ISR(TIM0_OVF_vect)
 	 * depends on the CPU frequency. */
 	tmp = current_pwm_setpoint;
 	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
-	delay_count = (uint16_t)clamp(tmp, 0u, UINT16_MAX);
+	delay_count = (uint16_t)min(tmp, UINT16_MAX);
 
 	/* Switch the PWM output high, then delay, then switch the output low.
 	 * (It it Ok to delay for a short time in the this interrupt). */
