@@ -56,6 +56,7 @@
 #define min(a, b)		((a) < (b) ? (a) : (b))
 #define max(a, b)		((a) > (b) ? (a) : (b))
 #define ARRAY_SIZE(a)		(sizeof(a) / sizeof((a)[0]))
+#define memory_barrier()	__asm__ __volatile__("" : : : "memory")
 
 #define OUTPUT_HIGH		(PWM_INVERT ? false : true)
 #define OUTPUT_LOW		(PWM_INVERT ? true : false)
@@ -186,12 +187,13 @@ ISR(TIM0_OVF_vect)
 	/* Calculate the duty-cycle-high time duration.
 	 * The calculated value is a CPU delay loop value and thus
 	 * depends on the CPU frequency. */
+	memory_barrier();
 	tmp = current_pwm_setpoint;
 	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
 	delay_count = (uint16_t)min(tmp, UINT16_MAX);
 
 	/* Switch the PWM output high, then delay, then switch the output low.
-	 * (It it Ok to delay for a short time in the this interrupt). */
+	 * (It it Ok to delay for a short time in this interrupt). */
 	if (delay_count == 0) {
 		/* No delay (off) */
 
@@ -216,7 +218,7 @@ ISR(TIM0_OVF_vect)
 			ASM_PWM_OUT_LOW
 		: : ASM_INPUTS
 		: );
-	} else if (delay_count / 3u <= 255u) {
+	} else if (delay_count / 3u <= 0xFFu) {
 		/* 3 clocks per loop iteration
 		 * -> divide count */
 		delay_count8 = (uint8_t)(delay_count / 3u);
@@ -261,6 +263,7 @@ static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
 
 	/* Store the setpoint for use in TIM0_OVF interrupt. */
 	current_pwm_setpoint = setpoint;
+	memory_barrier();
 
 	/* Calculate PWM value from the setpoint value */
 	pwm_range = PWM_POSLIM - PWM_NEGLIM;
