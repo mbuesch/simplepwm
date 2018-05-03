@@ -33,11 +33,8 @@
 
 /* ADC configuration. */
 #define ADC_HYST		1u		/* ADC hysteresis */
-#define ADC_MINMAX_DEADBAND	10u		/* Deadband at min/max positions */
-#define ADC_REAL_MIN		0u		/* Physical ADC minimum */
-#define ADC_REAL_MAX		0x3FFu		/* Physical ADC maximum */
-#define ADC_MIN			(ADC_REAL_MIN + ADC_MINMAX_DEADBAND) /* Logical ADC minimum */
-#define ADC_MAX			(ADC_REAL_MAX - ADC_MINMAX_DEADBAND) /* Logical ADC maximum */
+#define ADC_MIN			0u		/* Physical ADC minimum */
+#define ADC_MAX			0x3FFu		/* Physical ADC maximum */
 #define ADC_INVERT		true		/* Invert ADC signal? */
 
 /* PWM configuration. */
@@ -76,15 +73,17 @@ struct curve_point {
 
 /* Value transformation curve. */
 static const struct curve_point __flash transformation_curve[] = {
-	CURVE_POINT(0,     0),
-	CURVE_POINT(8192,  793),
-	CURVE_POINT(16384, 2101),
-	CURVE_POINT(24576, 4257),
-	CURVE_POINT(32768, 7812),
-	CURVE_POINT(40960, 13673),
-	CURVE_POINT(49152, 23336),
-	CURVE_POINT(57344, 39268),
-	CURVE_POINT(65535, 65535),
+	CURVE_POINT(0,    0),
+	CURVE_POINT(10,   0),
+	CURVE_POINT(96,   551),
+	CURVE_POINT(256,  2101),
+	CURVE_POINT(416,  4981),
+	CURVE_POINT(576,  10401),
+	CURVE_POINT(716,  18804),
+	CURVE_POINT(844,  31928),
+	CURVE_POINT(940,  46867),
+	CURVE_POINT(1013, 65535),
+	CURVE_POINT(1023, 65535),
 };
 
 
@@ -344,14 +343,18 @@ static void pwm_init(void)
 	pwm_set(0u, PWM_HW_MODE);
 }
 
+enum direction {
+	DIR_DOWN,
+	DIR_UP,
+};
+
 /* ADC conversion complete interrupt service routine */
 ISR(ADC_vect)
 {
-	uint32_t adc_range;
 	uint16_t adc;
-	uint16_t scaled;
 	uint16_t setpoint;
-	static uint16_t prev_adc = ADC_REAL_MIN;
+	static uint16_t prev_adc = ADC_MIN;
+	static enum direction prev_dir = DIR_DOWN;
 
 	/* Disable the ADC interrupt and
 	 * globally enable interrupts.
@@ -362,26 +365,36 @@ ISR(ADC_vect)
 	/* Read the analog input */
 	adc = ADC;
 	if (ADC_INVERT)
-		adc = ADC_REAL_MAX - adc;
+		adc = ADC_MAX - adc;
 
-	/* Limit ADC value */
-	if (adc <= ADC_MIN)
-		adc = ADC_MIN;
-	else if (adc >= ADC_MAX)
-		adc = ADC_MAX;
-	else if (abs((int16_t)adc - (int16_t)prev_adc) <= ADC_HYST)
-		adc = prev_adc;
+	/* Suppress ADC jitter */
+	if (adc < prev_adc) {
+		/* The ADC value decreased.
+		 * If the ADC value increased in the previous step,
+		 * don't let it decrease now, if the difference is small. */
+		if (prev_dir == DIR_UP) {
+			if (prev_adc - adc <= ADC_HYST)
+				adc = prev_adc;
+			else
+				prev_dir = DIR_DOWN;
+		}
+	} else if (adc > prev_adc) {
+		/* The ADC value increased.
+		 * If the ADC value decreased in the previous step,
+		 * don't let it increase now, if the difference is small. */
+		if (prev_dir == DIR_DOWN) {
+			if (adc - prev_adc <= ADC_HYST)
+				adc = prev_adc;
+			else
+				prev_dir = DIR_UP;
+		}
+	}
 	prev_adc = adc;
-
-	/* Scale ADC value to 16 bit */
-	adc_range = ADC_MAX - ADC_MIN;
-	adc -= ADC_MIN;
-	scaled = (uint16_t)(((uint32_t)adc * 0xFFFFu) / adc_range);
 
 	/* Transform the value according to the transformation curve. */
 	setpoint = curve_interpolate(transformation_curve,
 				     ARRAY_SIZE(transformation_curve),
-				     scaled);
+				     adc);
 
 	/* Globally disable interrupts.
 	 * and re-enable the ADC interrupt.
