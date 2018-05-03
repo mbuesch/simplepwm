@@ -27,7 +27,7 @@ FUNC_STACK_LIMIT	:=
 # Programmer selection.
 # Values can be:  avrisp2, mysmartusb
 PROGRAMMER		:= avrisp2
-AVRDUDE_SPEED		:= 200
+AVRDUDE_SPEED		:= 10
 AVRDUDE_SLOW_SPEED	:= 200
 
 # Instrumentation
