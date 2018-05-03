@@ -415,23 +415,19 @@ static void adc_init(void)
 }
 
 /* Early watchdog timer initialization. */
-void wdt_early_init(void) __attribute__((naked, used, section(".init3")));
-void wdt_early_init(void)
+void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 {
-	MCUSR = 0;
 	wdt_enable(WDTO_500MS);
 }
 
 /* Main program entry point. */
-int main(void)
+int __attribute__((__OS_main__)) main(void)
 {
 	ports_init();
 	adc_init();
 	pwm_init();
 
 	set_sleep_mode(SLEEP_MODE_IDLE);
-	wdt_enable(WDTO_250MS);
-
 	sei();
 	while (1)
 		sleep_mode();
