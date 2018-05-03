@@ -61,6 +61,11 @@
 #define OUTPUT_HIGH		(PWM_INVERT ? false : true)
 #define OUTPUT_LOW		(PWM_INVERT ? true : false)
 
+/* PWM timer modes for pwm_set() */
+#define PWM_UNKNOWN_MODE	0u
+#define PWM_IRQ_MODE		1u /* Interrupt mode */
+#define PWM_HW_MODE		2u /* Hardware-PWM mode */
+
 
 struct curve_point {
 	uint16_t x;
@@ -255,15 +260,11 @@ ISR(TIM0_OVF_vect)
 }
 
 /* Set the PWM setpoint. */
-static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
+static void pwm_set(uint16_t setpoint, uint8_t mode)
 {
-	uint8_t cr0b;
-	uint8_t pwm;
 	uint32_t pwm_range;
-
-	/* Store the setpoint for use in TIM0_OVF interrupt. */
-	current_pwm_setpoint = setpoint;
-	memory_barrier();
+	uint8_t pwm;
+	static uint8_t active_mode = PWM_UNKNOWN_MODE;
 
 	/* Calculate PWM value from the setpoint value */
 	pwm_range = PWM_POSLIM - PWM_NEGLIM;
@@ -274,7 +275,16 @@ static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
 	if (!PWM_INVERT)
 		pwm = (uint8_t)(PWM_MAX - pwm);
 
-	if (irq_mode || pwm == PWM_MIN) {
+	/* Store the setpoint for use by TIM0_OVF interrupt. */
+	current_pwm_setpoint = setpoint;
+	memory_barrier();
+
+	if (mode != active_mode) {
+		/* Mode changed. Disable the timer before reconfiguring. */
+		TCCR0B = 0u;
+	}
+
+	if (mode == PWM_IRQ_MODE || pwm == PWM_MIN) {
 		/* In interrupt mode or of the duty cycle is zero,
 		 * do not drive the output pin by hardware. */
 		TCCR0A = (0u << COM0A1) | (0u << COM0A0) |\
@@ -287,36 +297,7 @@ static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
 			 (1u << WGM01) | (1u << WGM00);
 	}
 
-	/* Set the clock prescaler (fast or slow). */
-	if (clock_fast) {
-		cr0b = (0u << FOC0A) | (0u << FOC0B) |\
-		       (0u << WGM02) |\
-		       (0u << CS02) | (0u << CS01) | (1u << CS00);
-	} else {
-		cr0b = (0u << FOC0A) | (0u << FOC0B) |\
-		       (0u << WGM02) |\
-		       (1u << CS02) | (0u << CS01) | (0u << CS00);
-	}
-	if (cr0b != TCCR0B) {
-		/* Set the new prescaler. */
-		TCCR0B = cr0b;
-		/* Reset the timer counter. */
-		TCNT0 = 0u;
-	}
-
-	if (irq_mode) {
-		/* Enable the TIM0_OVF interrupt. */
-		if (!(TIMSK0 & (1u << TOIE0))) {
-			TIMSK0 |= (1u << TOIE0);
-			TIFR0 = (1u << TOV0);
-		}
-	} else {
-		/* Disable the TIM0_OVF interrupt. */
-		if (TIMSK0 & (1u << TOIE0)) {
-			TIMSK0 &= (uint8_t)~(1u << TOIE0);
-			TIFR0 = (1u << TOV0);
-		}
-
+	if (mode == PWM_HW_MODE) {
 		/* Set the duty cycle in hardware. */
 		if (pwm == PWM_MIN) {
 			port_out_set(true);
@@ -325,16 +306,42 @@ static void pwm_set(uint16_t setpoint, bool clock_fast, bool irq_mode)
 			OCR0A = pwm;
 		}
 	}
+
+	if (mode != active_mode) {
+		active_mode = mode;
+
+		/* Reset the timer counter. */
+		TCNT0 = PWM_INVERT ? 0u : 0xFFu;
+
+		/* Set the clock prescaler (fast or slow). */
+		if (mode == PWM_IRQ_MODE) {
+			/* Slow clock (PS=256) */
+			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
+				 (0u << WGM02) |\
+				 (1u << CS02) | (0u << CS01) | (0u << CS00);
+
+			/* Enable the TIM0_OVF interrupt. */
+			TIMSK0 |= (1u << TOIE0);
+		} else {
+			/* Fast clock (PS=1) */
+			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
+				 (0u << WGM02) |\
+				 (0u << CS02) | (0u << CS01) | (1u << CS00);
+
+			/* Disable the TIM0_OVF interrupt. */
+			TIMSK0 &= (uint8_t)~(1u << TOIE0);
+		}
+
+		/* Clear the interrupt flag. */
+		TIFR0 = (1u << TOV0);
+	}
 }
 
 /* Initialize the PWM timer. */
 static void pwm_init(void)
 {
 	TCCR0B = 0u;
-	TCNT0 = PWM_INVERT ? 0u : 0xFFu;
-	OCR0A = PWM_INVERT ? 0u : 0xFFu;
-	OCR0B = PWM_INVERT ? 0u : 0xFFu;
-	pwm_set(0u, true, false);
+	pwm_set(0u, PWM_HW_MODE);
 }
 
 /* ADC conversion complete interrupt service routine */
@@ -385,12 +392,14 @@ ISR(ADC_vect)
 	if (setpoint > 0u &&
 	    setpoint <= PWM_HIGHRES_SP_THRES) {
 		/* Small PWM duty cycles are handled with a much
-		 * much higher resolution, but with much lower frequency. */
-		pwm_set(setpoint, false, true);
+		 * much higher resolution, but with much lower frequency
+		 * in the PWM timer interrupt. */
+		pwm_set(setpoint, PWM_IRQ_MODE);
 	} else {
 		/* Normal PWM duty cycle.
-		 * Use high frequency low resolution PWM. */
-		pwm_set(setpoint, true, false);
+		 * Use high frequency low resolution PWM.
+		 * Disable interrupt mode. */
+		pwm_set(setpoint, PWM_HW_MODE);
 	}
 
 	/* Poke the watchdog */
