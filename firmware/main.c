@@ -273,6 +273,8 @@ ISR(TIM0_OVF_vect)
 	 * just in case the delay took long.
 	 * Clear the interrupt flag. */
 	TIFR = (1u << TOV0);
+
+	memory_barrier();
 }
 
 /* Set the PWM setpoint. */
@@ -376,6 +378,8 @@ ISR(ADC_vect)
 	static uint16_t prev_adc = ADC_MIN;
 	static enum direction prev_dir = DIR_DOWN;
 
+	memory_barrier();
+
 	/* Disable the ADC interrupt and
 	 * globally enable interrupts.
 	 * This allows TIM0_OVF_vect to interrupt us. */
@@ -443,6 +447,8 @@ ISR(ADC_vect)
 		/* Poke the watchdog */
 		wdt_reset();
 	}
+
+	memory_barrier();
 }
 
 /* Initialize the input ADC measurement. */
@@ -492,11 +498,14 @@ static void power_reduction(bool full)
 ISR(WDT_vect)
 {
 	/* We just woke up from deep sleep. */
+	memory_barrier();
 
 	deep_sleep_request = false;
 	power_reduction(false);
 
+	memory_barrier();
 	WDTCR |= (1 << WDIE);
+	memory_barrier();
 }
 #endif /* USE_DEEP_SLEEP */
 
@@ -527,12 +536,34 @@ int __attribute__((__OS_main__)) main(void)
 			set_sleep_mode(SLEEP_MODE_IDLE);
 		}
 		sleep_enable();
-#ifdef BODS
-		if (deep_sleep)
-			sleep_bod_disable();
+#if defined(BODS) && USE_DEEP_SLEEP
+		if (deep_sleep) {
+			uint8_t tmp0, tmp1;
+			/* Disable BOD, then enter sleep mode. */
+			__asm__ __volatile__(
+				"in   %[tmp0_],  %[MCUCR_] \n"
+				"ori  %[tmp0_],  %[BODS_BODSE_] \n"
+				"mov  %[tmp1_],  %[tmp0_] \n"
+				"andi %[tmp1_],  %[NOT_BODSE_] \n"
+				/* vvv timed sequence vvv */
+				"out  %[MCUCR_], %[tmp0_] \n"
+				"out  %[MCUCR_], %[tmp1_] \n"
+				"sei \n"
+				"sleep \n"
+				/* ^^^ timed sequence ^^^ */
+				: [tmp0_]       "=&d" (tmp0),
+				  [tmp1_]       "=&d" (tmp1)
+				: [MCUCR_]      "I"   (_SFR_IO_ADDR(BOD_CONTROL_REG)),
+				  [BODS_BODSE_] "i"   ((1 << BODS) | (1 << BODSE)),
+				  [NOT_BODSE_]  "i"   ((uint8_t)~(1 << BODSE))
+			);
+		} else
 #endif
-		sei();
-		sleep_cpu();
+		{
+			/* Enter sleep mode. */
+			sei();
+			sleep_cpu();
+		}
 		sleep_disable();
 	}
 }
