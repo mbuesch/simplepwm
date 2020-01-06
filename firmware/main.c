@@ -1,7 +1,7 @@
 /*
  * Simple PWM controller
  *
- * Copyright (c) 2018 Michael Buesch <m@bues.ch>
+ * Copyright (c) 2018-2020 Michael Buesch <m@bues.ch>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,13 +18,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <avr/io.h>
-#include <avr/wdt.h>
-#include <avr/interrupt.h>
-#include <avr/sleep.h>
-#include <avr/cpufunc.h>
-
-#include <util/delay.h>
+#include "compat.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -47,6 +41,10 @@
 #define PWM_SP_TO_CPU_CYC_MUL	1u		/* Setpoint to cycle multiplicator */
 #define PWM_SP_TO_CPU_CYC_DIV	1u		/* Setpoint to cycle divisor */
 
+/* Potentiometer enable pin. */
+#define POTEN_PORT		PORTB
+#define POTEN_DDR		DDRB
+#define POTEN_BIT		3
 
 /* Helper macros. */
 #define abs(x)			((x) >= 0 ? (x) : -(x))
@@ -62,6 +60,14 @@
 #define PWM_UNKNOWN_MODE	0u
 #define PWM_IRQ_MODE		1u /* Interrupt mode */
 #define PWM_HW_MODE		2u /* Hardware-PWM mode */
+
+/* Sleep mode */
+#ifdef __AVR_ATtiny13__
+# warning "Deep sleep disabled on ATTiny13."
+# define USE_DEEP_SLEEP		0
+#else
+# define USE_DEEP_SLEEP		1
+#endif
 
 
 struct curve_point {
@@ -140,6 +146,15 @@ static uint16_t curve_interpolate(const struct curve_point __flash *curve,
 	return y;
 }
 
+/* Enable/disable the power supply to the potentiometer. */
+static void potentiometer_enable(bool enable)
+{
+	if (enable)
+		POTEN_PORT |= (1 << POTEN_BIT);
+	else
+		POTEN_PORT &= (uint8_t)~(1 << POTEN_BIT);
+}
+
 /* Set the PWM output port state. */
 static void port_out_set(bool high)
 {
@@ -166,13 +181,13 @@ static void ports_init(void)
 	/* PB0 = output
 	 * PB1 = input / pullup
 	 * PB2 = input / pullup
-	 * PB3 = input / pullup
+	 * PB3 = output
 	 * PB4 = input / no pullup
 	 * PB5 = input / pullup
 	 */
-	DDRB = (0 << DDB5) | (0 << DDB4) | (0 << DDB3) |\
+	DDRB = (0 << DDB5) | (0 << DDB4) | (1 << DDB3) |\
 	       (0 << DDB2) | (0 << DDB1) | (1 << DDB0);
-	PORTB = (1 << PB5) | (0 << PB4) | (1 << PB3) |\
+	PORTB = (1 << PB5) | (0 << PB4) | (0 << PB3) |\
 		(1 << PB2) | (1 << PB1) | ((PWM_INVERT ? 1 : 0) << PB0);
 	/* Wait for pullup input capacity */
 	_delay_ms(20);
@@ -180,6 +195,8 @@ static void ports_init(void)
 
 /* Active PWM setpoint */
 static uint16_t current_pwm_setpoint;
+/* Go into deep sleep? */
+static bool deep_sleep_request;
 
 /* PWM low frequency / high resolution software interrupt handler */
 ISR(TIM0_OVF_vect)
@@ -255,7 +272,7 @@ ISR(TIM0_OVF_vect)
 	/* We don't want to re-trigger right now,
 	 * just in case the delay took long.
 	 * Clear the interrupt flag. */
-	TIFR0 = (1u << TOV0);
+	TIFR = (1u << TOV0);
 }
 
 /* Set the PWM setpoint. */
@@ -320,7 +337,7 @@ static void pwm_set(uint16_t setpoint, uint8_t mode)
 				 (1u << CS02) | (0u << CS01) | (0u << CS00);
 
 			/* Enable the TIM0_OVF interrupt. */
-			TIMSK0 |= (1u << TOIE0);
+			TIMSK |= (1u << TOIE0);
 		} else {
 			/* Fast clock (PS=1) */
 			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
@@ -328,19 +345,22 @@ static void pwm_set(uint16_t setpoint, uint8_t mode)
 				 (0u << CS02) | (0u << CS01) | (1u << CS00);
 
 			/* Disable the TIM0_OVF interrupt. */
-			TIMSK0 &= (uint8_t)~(1u << TOIE0);
+			TIMSK &= (uint8_t)~(1u << TOIE0);
 		}
 
 		/* Clear the interrupt flag. */
-		TIFR0 = (1u << TOV0);
+		TIFR = (1u << TOV0);
 	}
 }
 
 /* Initialize the PWM timer. */
-static void pwm_init(void)
+static void pwm_init(bool enable)
 {
 	TCCR0B = 0u;
-	pwm_set(0u, PWM_HW_MODE);
+	if (enable)
+		pwm_set(0u, PWM_HW_MODE);
+	else
+		port_out_set(false);
 }
 
 enum direction {
@@ -415,12 +435,18 @@ ISR(ADC_vect)
 		pwm_set(setpoint, PWM_HW_MODE);
 	}
 
-	/* Poke the watchdog */
-	wdt_reset();
+	if (USE_DEEP_SLEEP) {
+		/* If the PWM is disabled, request deep sleep to save power. */
+		if (setpoint == 0u)
+			deep_sleep_request = true;
+	} else {
+		/* Poke the watchdog */
+		wdt_reset();
+	}
 }
 
 /* Initialize the input ADC measurement. */
-static void adc_init(void)
+static void adc_init(bool enable)
 {
 	/* Disable ADC2 digital input */
 	DIDR0 = (1 << ADC2D);
@@ -428,32 +454,85 @@ static void adc_init(void)
 	ADMUX = (0 << REFS0) | (0 << ADLAR) | (1 << MUX1) | (0 << MUX0);
 	/* Trigger source = free running */
 	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
-	/* Enable and start ADC; PS = 128 */
-	ADCSRA = (1 << ADEN) | (1 << ADSC) | (0 << ADATE) |\
-		 (1 << ADIF) | (0 << ADIE) |\
-		 (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
-	/* Discard the first conversion */
-	while (!(ADCSRA & (1 << ADIF)));
-	/* Enable IRQ and enter free running mode */
-	ADCSRA |= (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |\
-		  (1 << ADIF) | (1 << ADIE);
+
+	if (enable) {
+		/* Enable and start ADC; free running; PS = 128; IRQ enabled */
+		ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |\
+			 (1 << ADIF) | (1 << ADIE) |\
+			 (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+	} else {
+		/* Disable ADC unit. */
+		ADCSRA = 0;
+	}
 }
+
+static void power_reduction(bool full)
+{
+	if (full) {
+		/* Disable as much as possible for deep sleep. */
+		pwm_init(false);
+		adc_init(false);
+		potentiometer_enable(false);
+#ifdef PRR
+		PRR = (1 << PRTIM1) | (1 << PRTIM0) | (1 << PRUSI) | (1 << PRADC);
+#endif
+	} else {
+		/* Disable only unused modules.
+		 * Enable used modules. */
+#ifdef PRR
+		PRR = (1 << PRTIM1) | (0 << PRTIM0) | (1 << PRUSI) | (0 << PRADC);
+#endif
+		potentiometer_enable(true);
+		adc_init(true);
+		pwm_init(true);
+	}
+}
+
+#if USE_DEEP_SLEEP
+ISR(WDT_vect)
+{
+	/* We just woke up from deep sleep. */
+
+	deep_sleep_request = false;
+	power_reduction(false);
+
+	WDTCR |= (1 << WDIE);
+}
+#endif /* USE_DEEP_SLEEP */
 
 /* Early watchdog timer initialization. */
 void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 {
 	wdt_enable(WDTO_500MS);
+	if (USE_DEEP_SLEEP)
+		WDTCR |= (1 << WDIE);
 }
 
 /* Main program entry point. */
 int __attribute__((__OS_main__)) main(void)
 {
-	ports_init();
-	adc_init();
-	pwm_init();
+	bool deep_sleep;
 
-	set_sleep_mode(SLEEP_MODE_IDLE);
-	sei();
-	while (1)
-		sleep_mode();
+	ports_init();
+	power_reduction(false);
+
+	while (1) {
+		cli();
+		memory_barrier();
+		deep_sleep = (USE_DEEP_SLEEP && deep_sleep_request);
+		if (deep_sleep) {
+			power_reduction(true);
+			set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+		} else {
+			set_sleep_mode(SLEEP_MODE_IDLE);
+		}
+		sleep_enable();
+#ifdef BODS
+		if (deep_sleep)
+			sleep_bod_disable();
+#endif
+		sei();
+		sleep_cpu();
+		sleep_disable();
+	}
 }
