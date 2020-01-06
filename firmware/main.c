@@ -21,6 +21,7 @@
 #include "compat.h"
 #include "util.h"
 #include "curve.h"
+#include "pwm.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -33,28 +34,10 @@
 #define ADC_MAX			0x3FFu		/* Physical ADC maximum */
 #define ADC_INVERT		true		/* Invert ADC signal? */
 
-/* PWM configuration. */
-#define PWM_MIN			0u		/* Physical PWM minimum */
-#define PWM_MAX			0xFFu		/* Physical PWM maximum */
-#define PWM_NEGLIM		(PWM_MIN + 0u)	/* Logical PWM mimimum */
-#define PWM_POSLIM		(PWM_MAX - 10u)	/* Logical PWM maximum */
-#define PWM_INVERT		false		/* Invert PWM signal? */
-#define PWM_HIGHRES_SP_THRES	2000u		/* High resolution threshold */
-#define PWM_SP_TO_CPU_CYC_MUL	1u		/* Setpoint to cycle multiplicator */
-#define PWM_SP_TO_CPU_CYC_DIV	1u		/* Setpoint to cycle divisor */
-
 /* Potentiometer enable pin. */
 #define POTEN_PORT		PORTB
 #define POTEN_DDR		DDRB
 #define POTEN_BIT		3
-
-#define OUTPUT_HIGH		(PWM_INVERT ? false : true)
-#define OUTPUT_LOW		(PWM_INVERT ? true : false)
-
-/* PWM timer modes for pwm_set() */
-#define PWM_UNKNOWN_MODE	0u
-#define PWM_IRQ_MODE		1u /* Interrupt mode */
-#define PWM_HW_MODE		2u /* Hardware-PWM mode */
 
 /* Sleep mode */
 #ifdef __AVR_ATtiny13__
@@ -89,27 +72,6 @@ static void potentiometer_enable(bool enable)
 		POTEN_PORT &= (uint8_t)~(1 << POTEN_BIT);
 }
 
-/* Set the PWM output port state. */
-static void port_out_set(bool high)
-{
-	if (high)
-		PORTB |= (1 << PB0);
-	else
-		PORTB &= (uint8_t)~(1 << PB0);
-}
-
-#if PWM_INVERT == false
-# define ASM_PWM_OUT_HIGH	"sbi %[_OUT_PORT], %[_OUT_BIT] \n"
-# define ASM_PWM_OUT_LOW	"cbi %[_OUT_PORT], %[_OUT_BIT] \n"
-#else
-# define ASM_PWM_OUT_HIGH	"cbi %[_OUT_PORT], %[_OUT_BIT] \n"
-# define ASM_PWM_OUT_LOW	"sbi %[_OUT_PORT], %[_OUT_BIT] \n"
-#endif
-
-#define ASM_INPUTS					\
-	[_OUT_PORT]	"I" (_SFR_IO_ADDR(PORTB)),	\
-	[_OUT_BIT]	"M" (PB0)
-
 static void ports_init(void)
 {
 	/* PB0 = output
@@ -127,177 +89,8 @@ static void ports_init(void)
 	_delay_ms(20);
 }
 
-/* Active PWM setpoint */
-static uint16_t current_pwm_setpoint;
 /* Go into deep sleep? */
 static bool deep_sleep_request;
-
-/* PWM low frequency / high resolution software interrupt handler */
-ISR(TIM0_OVF_vect)
-{
-	uint8_t delay_count8;
-	uint16_t delay_count;
-	uint32_t tmp;
-
-	/* Calculate the duty-cycle-high time duration.
-	 * The calculated value is a CPU delay loop value and thus
-	 * depends on the CPU frequency. */
-	memory_barrier();
-	tmp = current_pwm_setpoint;
-	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
-	delay_count = (uint16_t)min(tmp, UINT16_MAX);
-
-	/* Switch the PWM output high, then delay, then switch the output low.
-	 * (It it Ok to delay for a short time in this interrupt). */
-	if (delay_count == 0) {
-		/* No delay (off) */
-
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_LOW
-		: : ASM_INPUTS
-		: );
-	} else if (delay_count == 1) {
-		/* 1 clock delay */
-
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_HIGH
-			ASM_PWM_OUT_LOW
-		: : ASM_INPUTS
-		: );
-	} else if (delay_count == 2) {
-		/* 2 clocks delay */
-
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_HIGH
-		"	nop			\n"
-			ASM_PWM_OUT_LOW
-		: : ASM_INPUTS
-		: );
-	} else if (delay_count / 3u <= 0xFFu) {
-		/* 3 clocks per loop iteration
-		 * -> divide count */
-		delay_count8 = (uint8_t)(delay_count / 3u);
-
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_HIGH
-		"1:	dec %[_delay_count8]	\n"
-		"	brne 1b			\n"
-			ASM_PWM_OUT_LOW
-		: [_delay_count8] "=d" (delay_count8)
-		:                 "0" (delay_count8),
-		  ASM_INPUTS
-		: );
-	} else {
-		/* 4 clocks per loop iteration
-		 * -> divide count */
-		delay_count /= 4u;
-
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_HIGH
-		"1:	sbiw %[_delay_count], 1	\n"
-		"	brne 1b			\n"
-			ASM_PWM_OUT_LOW
-		: [_delay_count] "=w" (delay_count)
-		:                "0" (delay_count),
-		  ASM_INPUTS
-		: );
-	}
-
-	/* We don't want to re-trigger right now,
-	 * just in case the delay took long.
-	 * Clear the interrupt flag. */
-	TIFR = (1u << TOV0);
-
-	memory_barrier();
-}
-
-/* Set the PWM setpoint. */
-static void pwm_set(uint16_t setpoint, uint8_t mode)
-{
-	uint32_t pwm_range;
-	uint8_t pwm;
-	static uint8_t active_mode = PWM_UNKNOWN_MODE;
-
-	/* Calculate PWM value from the setpoint value */
-	pwm_range = PWM_POSLIM - PWM_NEGLIM;
-	pwm = (uint8_t)(((uint32_t)setpoint * pwm_range) / 0xFFFFu);
-	pwm += PWM_NEGLIM;
-
-	/* Invert the PWM, if required. */
-	if (!PWM_INVERT)
-		pwm = (uint8_t)(PWM_MAX - pwm);
-
-	/* Store the setpoint for use by TIM0_OVF interrupt. */
-	current_pwm_setpoint = setpoint;
-	memory_barrier();
-
-	if (mode != active_mode) {
-		/* Mode changed. Disable the timer before reconfiguring. */
-		TCCR0B = 0u;
-	}
-
-	if (mode == PWM_IRQ_MODE || pwm == PWM_MIN) {
-		/* In interrupt mode or of the duty cycle is zero,
-		 * do not drive the output pin by hardware. */
-		TCCR0A = (0u << COM0A1) | (0u << COM0A0) |\
-			 (0u << COM0B1) | (0u << COM0B0) |\
-			 (1u << WGM01) | (1u << WGM00);
-	} else {
-		/* Drive the output pin by hardware. */
-		TCCR0A = (1u << COM0A1) | (1u << COM0A0) |\
-			 (0u << COM0B1) | (0u << COM0B0) |\
-			 (1u << WGM01) | (1u << WGM00);
-	}
-
-	if (mode == PWM_HW_MODE) {
-		/* Set the duty cycle in hardware. */
-		if (pwm == PWM_MIN) {
-			port_out_set(true);
-		} else {
-			port_out_set(false);
-			OCR0A = pwm;
-		}
-	}
-
-	if (mode != active_mode) {
-		active_mode = mode;
-
-		/* Reset the timer counter. */
-		TCNT0 = PWM_INVERT ? 0u : 0xFFu;
-
-		/* Set the clock prescaler (fast or slow). */
-		if (mode == PWM_IRQ_MODE) {
-			/* Slow clock (PS=256) */
-			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
-				 (0u << WGM02) |\
-				 (1u << CS02) | (0u << CS01) | (0u << CS00);
-
-			/* Enable the TIM0_OVF interrupt. */
-			TIMSK |= (1u << TOIE0);
-		} else {
-			/* Fast clock (PS=1) */
-			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
-				 (0u << WGM02) |\
-				 (0u << CS02) | (0u << CS01) | (1u << CS00);
-
-			/* Disable the TIM0_OVF interrupt. */
-			TIMSK &= (uint8_t)~(1u << TOIE0);
-		}
-
-		/* Clear the interrupt flag. */
-		TIFR = (1u << TOV0);
-	}
-}
-
-/* Initialize the PWM timer. */
-static void pwm_init(bool enable)
-{
-	TCCR0B = 0u;
-	if (enable)
-		pwm_set(0u, PWM_HW_MODE);
-	else
-		port_out_set(false);
-}
 
 enum direction {
 	DIR_DOWN,

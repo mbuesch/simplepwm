@@ -2,7 +2,7 @@
 NAME			:= simplepwm
 
 # Project source files
-SRCS			:= main.c curve.c
+SRCS			:= main.c curve.c pwm.c
 GEN_SRCS		:=
 
 # Bootloader source files
