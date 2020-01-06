@@ -472,6 +472,10 @@ static void adc_init(bool enable)
 	}
 }
 
+/* Set power reduction mode.
+ * full=false: Normal operation mode. Disable unused peripherals.
+ * full=true: Prepare for deep sleep. Disable all peripherals.
+ */
 static void power_reduction(bool full)
 {
 	if (full) {
@@ -494,6 +498,33 @@ static void power_reduction(bool full)
 	}
 }
 
+/* Disable BOD, then enter sleep mode. */
+static void disable_bod_then_sleep(void)
+{
+#if USE_DEEP_SLEEP
+	uint8_t tmp0, tmp1;
+
+	__asm__ __volatile__(
+		"in   %[tmp0_],  %[MCUCR_] \n"
+		"ori  %[tmp0_],  %[BODS_BODSE_] \n"
+		"mov  %[tmp1_],  %[tmp0_] \n"
+		"andi %[tmp1_],  %[NOT_BODSE_] \n"
+		/* vvv timed sequence vvv */
+		"out  %[MCUCR_], %[tmp0_] \n"
+		"out  %[MCUCR_], %[tmp1_] \n"
+		"sei \n"
+		"sleep \n"
+		/* ^^^ timed sequence ^^^ */
+		: [tmp0_]       "=&d" (tmp0),
+		  [tmp1_]       "=&d" (tmp1)
+		: [MCUCR_]      "I"   (_SFR_IO_ADDR(BOD_CONTROL_REG)),
+		  [BODS_BODSE_] "i"   ((1 << BODS) | (1 << BODSE)),
+		  [NOT_BODSE_]  "i"   ((uint8_t)~(1 << BODSE))
+	);
+#endif /* USE_DEEP_SLEEP */
+}
+
+/* Watchdog timer interrupt service routine. */
 #if USE_DEEP_SLEEP
 ISR(WDT_vect)
 {
@@ -536,30 +567,10 @@ int __attribute__((__OS_main__)) main(void)
 			set_sleep_mode(SLEEP_MODE_IDLE);
 		}
 		sleep_enable();
-#if defined(BODS) && USE_DEEP_SLEEP
 		if (deep_sleep) {
-			uint8_t tmp0, tmp1;
 			/* Disable BOD, then enter sleep mode. */
-			__asm__ __volatile__(
-				"in   %[tmp0_],  %[MCUCR_] \n"
-				"ori  %[tmp0_],  %[BODS_BODSE_] \n"
-				"mov  %[tmp1_],  %[tmp0_] \n"
-				"andi %[tmp1_],  %[NOT_BODSE_] \n"
-				/* vvv timed sequence vvv */
-				"out  %[MCUCR_], %[tmp0_] \n"
-				"out  %[MCUCR_], %[tmp1_] \n"
-				"sei \n"
-				"sleep \n"
-				/* ^^^ timed sequence ^^^ */
-				: [tmp0_]       "=&d" (tmp0),
-				  [tmp1_]       "=&d" (tmp1)
-				: [MCUCR_]      "I"   (_SFR_IO_ADDR(BOD_CONTROL_REG)),
-				  [BODS_BODSE_] "i"   ((1 << BODS) | (1 << BODSE)),
-				  [NOT_BODSE_]  "i"   ((uint8_t)~(1 << BODSE))
-			);
-		} else
-#endif
-		{
+			disable_bod_then_sleep();
+		} else {
 			/* Enter sleep mode. */
 			sei();
 			sleep_cpu();
