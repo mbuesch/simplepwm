@@ -19,6 +19,8 @@
  */
 
 #include "compat.h"
+#include "util.h"
+#include "curve.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -46,13 +48,6 @@
 #define POTEN_DDR		DDRB
 #define POTEN_BIT		3
 
-/* Helper macros. */
-#define abs(x)			((x) >= 0 ? (x) : -(x))
-#define min(a, b)		((a) < (b) ? (a) : (b))
-#define max(a, b)		((a) > (b) ? (a) : (b))
-#define ARRAY_SIZE(a)		(sizeof(a) / sizeof((a)[0]))
-#define memory_barrier()	__asm__ __volatile__("" : : : "memory")
-
 #define OUTPUT_HIGH		(PWM_INVERT ? false : true)
 #define OUTPUT_LOW		(PWM_INVERT ? true : false)
 
@@ -70,13 +65,6 @@
 #endif
 
 
-struct curve_point {
-	uint16_t x;
-	uint16_t y;
-};
-#define CURVE_POINT(_x, _y)	{ .x = (uint16_t)(_x), \
-				  .y = (uint16_t)(_y), }
-
 /* Value transformation curve. */
 static const struct curve_point __flash transformation_curve[] = {
 	CURVE_POINT(0,    0),
@@ -91,60 +79,6 @@ static const struct curve_point __flash transformation_curve[] = {
 	CURVE_POINT(1013, 65535),
 	CURVE_POINT(1023, 65535),
 };
-
-
-/* Calculate and interpolate a curve Y value from an X value.
- *
- *   y
- *   ^       *
- *   |       *
- *  -|-     *
- *   |    *
- *   |*
- *   +------|---->x
- */
-static uint16_t curve_interpolate(const struct curve_point __flash *curve,
-				  uint8_t curve_size,
-				  uint16_t x)
-{
-	const struct curve_point __flash *rhp, *lhp;
-	uint8_t i;
-	uint16_t lx, ly;
-	uint16_t rx, ry;
-	uint16_t y;
-	uint32_t tmp;
-
-	if (!curve_size)
-		return x;
-
-	/* Find the curve points
-	 * left handed and right handed to the x value. */
-	lhp = &curve[0];
-	for (i = 0u; i < curve_size; i++) {
-		rhp = &curve[i];
-		if (rhp->x >= x)
-			break;
-		lhp = rhp;
-	}
-	lx = lhp->x;
-	ly = lhp->y;
-	rx = rhp->x;
-	ry = rhp->y;
-
-	/* Linear interpolation between lhp and rhp:
-	 *  ((x - lx) * ((ry - ly) / (rx - lx))) + ly  */
-	if (rx - lx == 0u) {
-		y = ly;
-	} else {
-		tmp = x - lx;
-		tmp *= ry - ly;
-		tmp /= rx - lx;
-		tmp += ly;
-		y = (uint16_t)min(tmp, UINT16_MAX);
-	}
-
-	return y;
-}
 
 /* Enable/disable the power supply to the potentiometer. */
 static void potentiometer_enable(bool enable)
