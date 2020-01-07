@@ -1,191 +1,288 @@
-EESchema Schematic File Version 2
-LIBS:power
-LIBS:device
-LIBS:switches
-LIBS:relays
-LIBS:motors
-LIBS:transistors
-LIBS:conn
-LIBS:linear
-LIBS:regul
-LIBS:74xx
-LIBS:cmos4000
-LIBS:adc-dac
-LIBS:memory
-LIBS:xilinx
-LIBS:microcontrollers
-LIBS:dsp
-LIBS:microchip
-LIBS:analog_switches
-LIBS:motorola
-LIBS:texas
-LIBS:intel
-LIBS:audio
-LIBS:interface
-LIBS:digital-audio
-LIBS:philips
-LIBS:display
-LIBS:cypress
-LIBS:siliconi
-LIBS:opto
-LIBS:atmel
-LIBS:contrib
-LIBS:valves
-LIBS:simplepwm-cache
-EELAYER 25 0
+EESchema Schematic File Version 4
+EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 1
-Title "Simple PWM generator"
-Date ""
-Rev "1.0"
-Comp "Copyright (c) 2018 Michael Buesch <m@bues.ch>"
-Comment1 "Licensed under the GNU/GPL v2 or (at your option) any later version"
+Title "Simple PWM LED controller"
+Date "2020-01-07"
+Rev "1.1"
+Comp "Copyright (c) 2018-2020 Michael Buesch <m@bues.ch>"
+Comment1 "Licensed under the GNU/GPL v2 or (at your option) any later version."
 Comment2 ""
 Comment3 ""
 Comment4 ""
 $EndDescr
 $Comp
-L ATTINY13-20PU U1
-U 1 1 5A6615A7
-P 6950 3750
-F 0 "U1" H 6150 4150 50  0000 C CNN
-F 1 "ATTINY13-20PU" H 7600 3350 50  0000 C CNN
-F 2 "Housings_DIP:DIP-8_W7.62mm" H 7600 3750 50  0001 C CIN
-F 3 "" H 6150 4100 50  0001 C CNN
-	1    6950 3750
+L MCU_Microchip_ATtiny:ATtiny85-20PU U1
+U 1 1 5E14CBD3
+P 3650 4200
+F 0 "U1" H 3121 4246 50  0000 R CNN
+F 1 "ATtiny85-20PU (or ATtiny13-20PU)" H 3121 4155 50  0000 R CNN
+F 2 "Package_DIP:DIP-8_W7.62mm" H 3650 4200 50  0001 C CIN
+F 3 "http://ww1.microchip.com/downloads/en/DeviceDoc/atmel-2586-avr-8-bit-microcontroller-attiny25-attiny45-attiny85_datasheet.pdf" H 3650 4200 50  0001 C CNN
+	1    3650 4200
 	1    0    0    -1  
 $EndComp
 $Comp
-L Conn_02x03_Odd_Even J1
-U 1 1 5A661678
-P 3450 3700
-F 0 "J1" H 3500 3900 50  0000 C CNN
-F 1 "ISP" H 3500 3500 50  0000 C CNN
-F 2 "" H 3450 3700 50  0001 C CNN
-F 3 "" H 3450 3700 50  0001 C CNN
-	1    3450 3700
+L Connector:AVR-ISP-6 J1
+U 1 1 5E14DD07
+P 5550 2750
+F 0 "J1" V 5083 2800 50  0000 C CNN
+F 1 "AVR-ISP-6" V 5174 2800 50  0000 C CNN
+F 2 "" V 5300 2800 50  0001 C CNN
+F 3 " ~" H 4275 2200 50  0001 C CNN
+	1    5550 2750
+	0    1    1    0   
+$EndComp
+$Comp
+L Device:R_POT RV1
+U 1 1 5E14E8CB
+P 7650 4750
+F 0 "RV1" H 7580 4704 50  0000 R CNN
+F 1 "100k" H 7580 4795 50  0000 R CNN
+F 2 "" H 7650 4750 50  0001 C CNN
+F 3 "~" H 7650 4750 50  0001 C CNN
+	1    7650 4750
 	-1   0    0    1   
 $EndComp
 $Comp
-L POT RV1
-U 1 1 5A661817
-P 5100 2750
-F 0 "RV1" V 4925 2750 50  0000 C CNN
-F 1 "47 k" V 5000 2750 50  0000 C CNN
-F 2 "" H 5100 2750 50  0001 C CNN
-F 3 "" H 5100 2750 50  0001 C CNN
-	1    5100 2750
+L Device:C C1
+U 1 1 5E14ECDB
+P 3400 3500
+F 0 "C1" V 3148 3500 50  0000 C CNN
+F 1 "100n" V 3239 3500 50  0000 C CNN
+F 2 "" H 3438 3350 50  0001 C CNN
+F 3 "~" H 3400 3500 50  0001 C CNN
+	1    3400 3500
+	0    1    1    0   
+$EndComp
+$Comp
+L power:VCC #PWR02
+U 1 1 5E153604
+P 3650 3400
+F 0 "#PWR02" H 3650 3250 50  0001 C CNN
+F 1 "VCC" H 3667 3573 50  0000 C CNN
+F 2 "" H 3650 3400 50  0001 C CNN
+F 3 "" H 3650 3400 50  0001 C CNN
+	1    3650 3400
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C2
-U 1 1 5A6619EC
-P 8050 3750
-F 0 "C2" H 8075 3850 50  0000 L CNN
-F 1 "100 nF" H 8075 3650 50  0000 L CNN
-F 2 "" H 8088 3600 50  0001 C CNN
-F 3 "" H 8050 3750 50  0001 C CNN
-	1    8050 3750
+L power:GND #PWR03
+U 1 1 5E153BD6
+P 3650 5000
+F 0 "#PWR03" H 3650 4750 50  0001 C CNN
+F 1 "GND" H 3655 4827 50  0000 C CNN
+F 2 "" H 3650 5000 50  0001 C CNN
+F 3 "" H 3650 5000 50  0001 C CNN
+	1    3650 5000
 	1    0    0    -1  
 $EndComp
-Text GLabel 8500 3500 2    60   Input ~ 0
-+5V
-Text GLabel 8500 4000 2    60   Input ~ 0
-GND
 Wire Wire Line
-	7950 4000 8500 4000
+	3650 4800 3650 5000
 Wire Wire Line
-	8500 3500 7950 3500
+	3650 3400 3650 3500
 Wire Wire Line
-	8050 3600 8050 3500
-Connection ~ 8050 3500
+	3550 3500 3650 3500
+Connection ~ 3650 3500
 Wire Wire Line
-	8050 3900 8050 4000
-Connection ~ 8050 4000
-Text GLabel 5450 2800 1    60   Input ~ 0
-PWM-OUT
-Wire Wire Line
-	4350 3500 5950 3500
-Wire Wire Line
-	5450 2800 5450 3500
-Wire Wire Line
-	5250 3900 5950 3900
-Text GLabel 5100 2500 1    60   Input ~ 0
-+5V
-Text GLabel 5100 3000 3    60   Input ~ 0
-GND
-Wire Wire Line
-	5100 2500 5100 2600
-Wire Wire Line
-	5100 2900 5100 3000
-Wire Wire Line
-	3650 3800 4350 3800
-Wire Wire Line
-	4350 3800 4350 3600
-Wire Wire Line
-	4350 3600 5950 3600
-Wire Wire Line
-	3650 3700 5950 3700
-Wire Wire Line
-	4350 3500 4350 3300
-Wire Wire Line
-	4350 3300 2450 3300
-Wire Wire Line
-	2450 3300 2450 3700
-Wire Wire Line
-	2450 3700 3150 3700
-Connection ~ 5450 3500
-Wire Wire Line
-	3650 3600 4250 3600
-Wire Wire Line
-	4250 3600 4250 4000
-Wire Wire Line
-	4250 4000 5950 4000
-Text GLabel 3050 3800 0    60   Input ~ 0
-+5V
-Text GLabel 3050 3600 0    60   Input ~ 0
-GND
-Wire Wire Line
-	3050 3600 3150 3600
-Wire Wire Line
-	3050 3800 3150 3800
-Wire Wire Line
-	5250 2750 5250 4350
-NoConn ~ 5950 3800
+	3650 3500 3650 3600
 $Comp
-L R R1
-U 1 1 5A662632
-P 5850 4500
-F 0 "R1" V 5930 4500 50  0000 C CNN
-F 1 "10 k" V 5850 4500 50  0000 C CNN
-F 2 "" V 5780 4500 50  0001 C CNN
-F 3 "" H 5850 4500 50  0001 C CNN
-	1    5850 4500
-	1    0    0    -1  
+L power:GND #PWR01
+U 1 1 5E1544B9
+P 3050 3500
+F 0 "#PWR01" H 3050 3250 50  0001 C CNN
+F 1 "GND" V 3055 3372 50  0000 R CNN
+F 2 "" H 3050 3500 50  0001 C CNN
+F 3 "" H 3050 3500 50  0001 C CNN
+	1    3050 3500
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	3050 3500 3250 3500
+$Comp
+L power:VCC #PWR06
+U 1 1 5E155655
+P 6250 2650
+F 0 "#PWR06" H 6250 2500 50  0001 C CNN
+F 1 "VCC" V 6267 2778 50  0000 L CNN
+F 2 "" H 6250 2650 50  0001 C CNN
+F 3 "" H 6250 2650 50  0001 C CNN
+	1    6250 2650
+	0    1    1    0   
 $EndComp
 $Comp
-L C C1
-U 1 1 5A662683
-P 5250 4500
-F 0 "C1" H 5275 4600 50  0000 L CNN
-F 1 "100 nF" H 5275 4400 50  0000 L CNN
-F 2 "" H 5288 4350 50  0001 C CNN
-F 3 "" H 5250 4500 50  0001 C CNN
-	1    5250 4500
+L power:GND #PWR05
+U 1 1 5E1565B8
+P 4950 2650
+F 0 "#PWR05" H 4950 2400 50  0001 C CNN
+F 1 "GND" V 4955 2522 50  0000 R CNN
+F 2 "" H 4950 2650 50  0001 C CNN
+F 3 "" H 4950 2650 50  0001 C CNN
+	1    4950 2650
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	4950 2650 5150 2650
+Wire Wire Line
+	6050 2650 6250 2650
+$Comp
+L Device:R R1
+U 1 1 5E1573BA
+P 4450 4750
+F 0 "R1" H 4520 4796 50  0000 L CNN
+F 1 "10k" H 4520 4705 50  0000 L CNN
+F 2 "" V 4380 4750 50  0001 C CNN
+F 3 "~" H 4450 4750 50  0001 C CNN
+	1    4450 4750
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	5850 4350 5850 4000
-Connection ~ 5850 4000
-Connection ~ 5250 3900
-Text GLabel 5250 4750 3    60   Input ~ 0
-GND
-Text GLabel 5850 4750 3    60   Input ~ 0
-+5V
+	4250 4400 4450 4400
 Wire Wire Line
-	5250 4650 5250 4750
+	4450 4400 4450 4600
 Wire Wire Line
-	5850 4650 5850 4750
+	4450 4400 5450 4400
+Wire Wire Line
+	5450 4400 5450 3150
+Connection ~ 4450 4400
+Wire Wire Line
+	5550 3150 5550 4100
+Wire Wire Line
+	5550 4100 4250 4100
+Wire Wire Line
+	5650 3150 5650 3900
+Wire Wire Line
+	5650 3900 4250 3900
+Wire Wire Line
+	5750 3150 5750 4000
+Wire Wire Line
+	5750 4000 4250 4000
+$Comp
+L power:VCC #PWR04
+U 1 1 5E159838
+P 4450 5000
+F 0 "#PWR04" H 4450 4850 50  0001 C CNN
+F 1 "VCC" H 4468 5173 50  0000 C CNN
+F 2 "" H 4450 5000 50  0001 C CNN
+F 3 "" H 4450 5000 50  0001 C CNN
+	1    4450 5000
+	-1   0    0    1   
+$EndComp
+Wire Wire Line
+	4450 4900 4450 5000
+$Comp
+L Connector:Conn_01x01_Female J2
+U 1 1 5E15A9D4
+P 7650 3900
+F 0 "J2" H 7500 4050 50  0000 L CNN
+F 1 "PWM_OUTPUT" H 7300 3800 50  0000 L CNN
+F 2 "" H 7650 3900 50  0001 C CNN
+F 3 "~" H 7650 3900 50  0001 C CNN
+	1    7650 3900
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	5650 3900 7450 3900
+Connection ~ 5650 3900
+$Comp
+L power:GND #PWR07
+U 1 1 5E169BFB
+P 7650 5000
+F 0 "#PWR07" H 7650 4750 50  0001 C CNN
+F 1 "GND" H 7655 4827 50  0000 C CNN
+F 2 "" H 7650 5000 50  0001 C CNN
+F 3 "" H 7650 5000 50  0001 C CNN
+	1    7650 5000
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	7650 4900 7650 5000
+Wire Wire Line
+	4250 4200 7650 4200
+Wire Wire Line
+	7650 4200 7650 4600
+Wire Wire Line
+	4250 4300 7300 4300
+Wire Wire Line
+	7300 4300 7300 4750
+Wire Wire Line
+	7300 4750 7500 4750
+$Comp
+L Connector:Conn_01x01_Male J3
+U 1 1 5E177271
+P 8000 3900
+F 0 "J3" H 8100 4050 50  0000 C CNN
+F 1 "Conn_01x01_Male" H 8000 3800 50  0001 C CNN
+F 2 "" H 8000 3900 50  0001 C CNN
+F 3 "~" H 8000 3900 50  0001 C CNN
+	1    8000 3900
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:Q_NMOS_DGS Q1
+U 1 1 5E179C4B
+P 9400 3900
+F 0 "Q1" H 9604 3946 50  0000 L CNN
+F 1 "Q_NMOS" H 9604 3855 50  0000 L CNN
+F 2 "" H 9600 4000 50  0001 C CNN
+F 3 "~" H 9400 3900 50  0001 C CNN
+	1    9400 3900
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:LED D1
+U 1 1 5E17A678
+P 9500 3200
+F 0 "D1" V 9539 3083 50  0000 R CNN
+F 1 "LED" V 9448 3083 50  0000 R CNN
+F 2 "" H 9500 3200 50  0001 C CNN
+F 3 "~" H 9500 3200 50  0001 C CNN
+	1    9500 3200
+	0    -1   -1   0   
+$EndComp
+$Comp
+L Device:R R2
+U 1 1 5E17B11C
+P 9500 2550
+F 0 "R2" H 9570 2596 50  0000 L CNN
+F 1 "R" H 9570 2505 50  0000 L CNN
+F 2 "" V 9430 2550 50  0001 C CNN
+F 3 "~" H 9500 2550 50  0001 C CNN
+	1    9500 2550
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:Vdrive #PWR08
+U 1 1 5E17C118
+P 9500 2050
+F 0 "#PWR08" H 9300 1900 50  0001 C CNN
+F 1 "Vdrive" H 9517 2223 50  0000 C CNN
+F 2 "" H 9500 2050 50  0001 C CNN
+F 3 "" H 9500 2050 50  0001 C CNN
+	1    9500 2050
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:GND #PWR09
+U 1 1 5E17C420
+P 9500 5000
+F 0 "#PWR09" H 9500 4750 50  0001 C CNN
+F 1 "GND" H 9505 4827 50  0000 C CNN
+F 2 "" H 9500 5000 50  0001 C CNN
+F 3 "" H 9500 5000 50  0001 C CNN
+	1    9500 5000
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	9500 4100 9500 5000
+Wire Wire Line
+	8200 3900 9200 3900
+Wire Wire Line
+	9500 3350 9500 3700
+Wire Wire Line
+	9500 2700 9500 3050
+Wire Wire Line
+	9500 2050 9500 2400
 $EndSCHEMATC
