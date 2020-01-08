@@ -35,6 +35,9 @@
 #define ADC_INVERT		true		/* Invert ADC signal? */
 
 
+static bool not_first_conversion;
+
+
 enum direction {
 	DIR_DOWN,
 	DIR_UP,
@@ -113,12 +116,25 @@ ISR(ADC_vect)
 
 	if (USE_DEEP_SLEEP) {
 		/* If the PWM is disabled, request deep sleep to save power. */
-		if (setpoint == 0u)
+		if (setpoint == 0u) {
+			/* Next conversion will be a first after deep sleep. */
+			not_first_conversion = false;
+			/* Request a microcontroller deep sleep. */
 			request_deep_sleep();
-	} else {
-		/* Poke the watchdog */
-		wdt_reset();
+		} else {
+			/* If this was a first conversion,
+			 * then re-initialize the ADC prescaler. */
+			if (!not_first_conversion) {
+				not_first_conversion = true;
+				adc_init(true);
+			}
+		}
 	}
+
+	/* If deep sleep support is disabled, then the watchdog IRQ is also disabled.
+	 * Poke the watchdog here. */
+	if (!USE_DEEP_SLEEP)
+		wdt_reset();
 
 	memory_barrier();
 }
@@ -126,6 +142,8 @@ ISR(ADC_vect)
 /* Initialize the input ADC measurement. */
 void adc_init(bool enable)
 {
+	/* Disable ADC unit. */
+	ADCSRA = 0;
 	/* Disable ADC2 digital input */
 	DIDR0 = (1 << ADC2D);
 	/* Ref = Vcc; ADC2/PB4; Right adjust */
@@ -134,13 +152,20 @@ void adc_init(bool enable)
 	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
 
 	if (enable) {
-		//TODO: The first conversion after deep-sleep should have a faster clock.
-		/* Enable and start ADC; free running; PS = 128; IRQ enabled */
-		ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |\
-			 (1 << ADIF) | (1 << ADIE) |\
-			 (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
-	} else {
-		/* Disable ADC unit. */
-		ADCSRA = 0;
+		if (not_first_conversion || !USE_DEEP_SLEEP) {
+			/* ADC is in normal operation. */
+			/* Enable and start ADC; free running; PS = 128; IRQ enabled */
+			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
+				 (1 << ADIF) | (1 << ADIE) |
+				 (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+		} else {
+			/* This is the first conversion after a deep sleep (or POR).
+			 * Use a faster prescaler so that we have a chance
+			 * to enter deep sleep again sooner. */
+			/* Enable and start ADC; free running; PS = 16; IRQ enabled */
+			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
+				 (1 << ADIF) | (1 << ADIE) |
+				 (1 << ADPS2) | (0 << ADPS1) | (0 << ADPS0);
+		}
 	}
 }

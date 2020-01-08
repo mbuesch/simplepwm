@@ -21,7 +21,6 @@
 #include "compat.h"
 #include "main.h"
 #include "util.h"
-#include "curve.h"
 #include "pwm.h"
 #include "adc.h"
 
