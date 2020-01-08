@@ -37,7 +37,8 @@
 /* Potentiometer enable pin. */
 #define POTEN_PORT		PORTB
 #define POTEN_DDR		DDRB
-#define POTEN_BIT		3
+#define POTEN_LO_BIT		2
+#define POTEN_HI_BIT		3
 
 /* Sleep mode */
 #ifdef __AVR_ATtiny13__
@@ -66,27 +67,34 @@ static const struct curve_point __flash transformation_curve[] = {
 /* Enable/disable the power supply to the potentiometer. */
 static void potentiometer_enable(bool enable)
 {
-	if (enable)
-		POTEN_PORT |= (1 << POTEN_BIT);
-	else
-		POTEN_PORT &= (uint8_t)~(1 << POTEN_BIT);
+	if (enable) {
+		/* Turn pot power supply on. */
+		POTEN_PORT |= (1 << POTEN_HI_BIT);
+		POTEN_DDR |= (1 << POTEN_HI_BIT);
+		POTEN_PORT &= (uint8_t)~(1 << POTEN_LO_BIT);
+		POTEN_DDR |= (1 << POTEN_LO_BIT);
+	} else {
+		/* Switch pot power supply to high impedance input. */
+		POTEN_DDR &= (uint8_t)~(1 << POTEN_HI_BIT);
+		POTEN_DDR &= (uint8_t)~(1 << POTEN_LO_BIT);
+		POTEN_PORT &= (uint8_t)~(1 << POTEN_HI_BIT);
+		POTEN_PORT &= (uint8_t)~(1 << POTEN_LO_BIT);
+	}
 }
 
 static void ports_init(void)
 {
 	/* PB0 = output
 	 * PB1 = input / pullup
-	 * PB2 = input / pullup
-	 * PB3 = output
+	 * PB2 = output / low
+	 * PB3 = output / low
 	 * PB4 = input / no pullup
 	 * PB5 = input / pullup
 	 */
 	DDRB = (0 << DDB5) | (0 << DDB4) | (1 << DDB3) |\
-	       (0 << DDB2) | (0 << DDB1) | (1 << DDB0);
+	       (1 << DDB2) | (0 << DDB1) | (1 << DDB0);
 	PORTB = (1 << PB5) | (0 << PB4) | (0 << PB3) |\
-		(1 << PB2) | (1 << PB1) | ((PWM_INVERT ? 1 : 0) << PB0);
-	/* Wait for pullup input capacity */
-	_delay_ms(20);
+		(0 << PB2) | (1 << PB1) | ((PWM_INVERT ? 1 : 0) << PB0);
 }
 
 /* Go into deep sleep? */
@@ -189,6 +197,7 @@ static void adc_init(bool enable)
 	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
 
 	if (enable) {
+		//TODO: The first conversion after deep-sleep should have a faster clock.
 		/* Enable and start ADC; free running; PS = 128; IRQ enabled */
 		ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |\
 			 (1 << ADIF) | (1 << ADIE) |\
@@ -288,8 +297,8 @@ int __attribute__((__OS_main__)) main(void)
 		memory_barrier();
 		deep_sleep = (USE_DEEP_SLEEP && deep_sleep_request);
 		if (deep_sleep) {
-			power_reduction(true);
 			set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+			power_reduction(true);
 		} else {
 			set_sleep_mode(SLEEP_MODE_IDLE);
 		}
