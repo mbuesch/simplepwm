@@ -7,7 +7,7 @@ DEV			:= t85
 NAME			:= simplepwm
 
 # Project source files
-SRCS			:= main.c curve.c pwm.c
+SRCS			:= main.c curve.c pwm.c adc.c
 GEN_SRCS		:=
 
 # Bootloader source files

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <limits.h>
 
 #define abs(x)			((x) >= 0 ? (x) : -(x))
 #define min(a, b)		((a) < (b) ? (a) : (b))

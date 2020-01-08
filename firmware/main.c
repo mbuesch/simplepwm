@@ -19,20 +19,12 @@
  */
 
 #include "compat.h"
+#include "main.h"
 #include "util.h"
 #include "curve.h"
 #include "pwm.h"
+#include "adc.h"
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <limits.h>
-
-
-/* ADC configuration. */
-#define ADC_HYST		1u		/* ADC hysteresis */
-#define ADC_MIN			0u		/* Physical ADC minimum */
-#define ADC_MAX			0x3FFu		/* Physical ADC maximum */
-#define ADC_INVERT		true		/* Invert ADC signal? */
 
 /* Potentiometer enable pin. */
 #define POTEN_PORT		PORTB
@@ -40,29 +32,15 @@
 #define POTEN_LO_BIT		2
 #define POTEN_HI_BIT		3
 
-/* Sleep mode */
-#ifdef __AVR_ATtiny13__
-# warning "Deep sleep disabled on ATTiny13."
-# define USE_DEEP_SLEEP		0
-#else
-# define USE_DEEP_SLEEP		1
-#endif
+
+/* Go into deep sleep? */
+static bool deep_sleep_request;
 
 
-/* Value transformation curve. */
-static const struct curve_point __flash transformation_curve[] = {
-	CURVE_POINT(0,    0),
-	CURVE_POINT(10,   0),
-	CURVE_POINT(96,   551),
-	CURVE_POINT(256,  2101),
-	CURVE_POINT(416,  4981),
-	CURVE_POINT(576,  10401),
-	CURVE_POINT(716,  18804),
-	CURVE_POINT(844,  31928),
-	CURVE_POINT(940,  46867),
-	CURVE_POINT(1013, 65535),
-	CURVE_POINT(1023, 65535),
-};
+void request_deep_sleep(void)
+{
+	deep_sleep_request = true;
+}
 
 /* Enable/disable the power supply to the potentiometer. */
 static void potentiometer_enable(bool enable)
@@ -95,117 +73,6 @@ static void ports_init(void)
 	       (1 << DDB2) | (0 << DDB1) | (1 << DDB0);
 	PORTB = (1 << PB5) | (0 << PB4) | (0 << PB3) |\
 		(0 << PB2) | (1 << PB1) | ((PWM_INVERT ? 1 : 0) << PB0);
-}
-
-/* Go into deep sleep? */
-static bool deep_sleep_request;
-
-enum direction {
-	DIR_DOWN,
-	DIR_UP,
-};
-
-/* ADC conversion complete interrupt service routine */
-ISR(ADC_vect)
-{
-	uint16_t adc;
-	uint16_t setpoint;
-	static uint16_t prev_adc = ADC_MIN;
-	static enum direction prev_dir = DIR_DOWN;
-
-	memory_barrier();
-
-	/* Disable the ADC interrupt and
-	 * globally enable interrupts.
-	 * This allows TIM0_OVF_vect to interrupt us. */
-	ADCSRA &= (uint8_t)~(1u << ADIE);
-	sei();
-
-	/* Read the analog input */
-	adc = ADC;
-	if (ADC_INVERT)
-		adc = ADC_MAX - adc;
-
-	/* Suppress ADC jitter */
-	if (adc < prev_adc) {
-		/* The ADC value decreased.
-		 * If the ADC value increased in the previous step,
-		 * don't let it decrease now, if the difference is small. */
-		if (prev_dir == DIR_UP) {
-			if (prev_adc - adc <= ADC_HYST)
-				adc = prev_adc;
-			else
-				prev_dir = DIR_DOWN;
-		}
-	} else if (adc > prev_adc) {
-		/* The ADC value increased.
-		 * If the ADC value decreased in the previous step,
-		 * don't let it increase now, if the difference is small. */
-		if (prev_dir == DIR_DOWN) {
-			if (adc - prev_adc <= ADC_HYST)
-				adc = prev_adc;
-			else
-				prev_dir = DIR_UP;
-		}
-	}
-	prev_adc = adc;
-
-	/* Transform the value according to the transformation curve. */
-	setpoint = curve_interpolate(transformation_curve,
-				     ARRAY_SIZE(transformation_curve),
-				     adc);
-
-	/* Globally disable interrupts.
-	 * and re-enable the ADC interrupt.
-	 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
-	cli();
-	ADCSRA |= (1u << ADIF) | (1u << ADIE);
-
-	if (setpoint > 0u &&
-	    setpoint <= PWM_HIGHRES_SP_THRES) {
-		/* Small PWM duty cycles are handled with a much
-		 * much higher resolution, but with much lower frequency
-		 * in the PWM timer interrupt. */
-		pwm_set(setpoint, PWM_IRQ_MODE);
-	} else {
-		/* Normal PWM duty cycle.
-		 * Use high frequency low resolution PWM.
-		 * Disable interrupt mode. */
-		pwm_set(setpoint, PWM_HW_MODE);
-	}
-
-	if (USE_DEEP_SLEEP) {
-		/* If the PWM is disabled, request deep sleep to save power. */
-		if (setpoint == 0u)
-			deep_sleep_request = true;
-	} else {
-		/* Poke the watchdog */
-		wdt_reset();
-	}
-
-	memory_barrier();
-}
-
-/* Initialize the input ADC measurement. */
-static void adc_init(bool enable)
-{
-	/* Disable ADC2 digital input */
-	DIDR0 = (1 << ADC2D);
-	/* Ref = Vcc; ADC2/PB4; Right adjust */
-	ADMUX = (0 << REFS0) | (0 << ADLAR) | (1 << MUX1) | (0 << MUX0);
-	/* Trigger source = free running */
-	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
-
-	if (enable) {
-		//TODO: The first conversion after deep-sleep should have a faster clock.
-		/* Enable and start ADC; free running; PS = 128; IRQ enabled */
-		ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |\
-			 (1 << ADIF) | (1 << ADIE) |\
-			 (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
-	} else {
-		/* Disable ADC unit. */
-		ADCSRA = 0;
-	}
 }
 
 /* Set power reduction mode.
