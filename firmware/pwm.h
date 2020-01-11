@@ -3,15 +3,30 @@
 
 #include "util.h"
 
-/* PWM configuration. */
-#define PWM_MIN			0u		/* Physical PWM minimum */
-#define PWM_MAX			0xFFu		/* Physical PWM maximum */
-#define PWM_NEGLIM		(PWM_MIN + 0u)	/* Logical PWM mimimum */
-#define PWM_POSLIM		(PWM_MAX - 10u)	/* Logical PWM maximum */
-#define PWM_INVERT		false		/* Invert PWM signal? */
-#define PWM_HIGHRES_SP_THRES	2000u		/* High resolution threshold */
-#define PWM_SP_TO_CPU_CYC_MUL	1u		/* Setpoint to cycle multiplicator */
-#define PWM_SP_TO_CPU_CYC_DIV	1u		/* Setpoint to cycle divisor */
+
+/* Physical PWM limits */
+#define PWM_MIN			0u
+#define PWM_MAX			0xFFu
+
+/* Logical PWM limits */
+#define PWM_NEGLIM		(PWM_MIN + 0u)
+#define PWM_POSLIM		((uint8_t)((PWM_MAX * PWM_LIM) / 100u))
+
+/* High resolution setpoint threshold */
+#define PWM_HIGHRES_SP_THRES	2000u
+
+/* Setpoint to CPU cycles conversion */
+#if F_CPU == 9600000UL
+# define PWM_SP_TO_CPU_CYC_MUL	1u		/* Setpoint to cycle multiplicator */
+# define PWM_SP_TO_CPU_CYC_DIV	1u		/* Setpoint to cycle divisor */
+#elif F_CPU == 8000000UL
+//TODO
+#warning TODO
+# define PWM_SP_TO_CPU_CYC_MUL	1u		/* Setpoint to cycle multiplicator */
+# define PWM_SP_TO_CPU_CYC_DIV	1u		/* Setpoint to cycle divisor */
+#else
+# error "Unknown F_CPU."
+#endif
 
 /* PWM timer modes for pwm_set() */
 #define PWM_UNKNOWN_MODE	0u

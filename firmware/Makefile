@@ -3,6 +3,11 @@
 #	t85	=> ATTiny85 with full feature set.
 DEV			:= t85
 
+# Limit the maximum PWM duty cycle to this percentage:
+PWM_LIM			:= 96
+# Invert the PWM output signal?
+PWM_INVERT		:= 0
+
 # Project name
 NAME			:= simplepwm
 
@@ -60,7 +65,9 @@ INSTRUMENT_FUNC		:=
 BOOT_INSTRUMENT_FUNC	:=
 
 # Additional compiler flags
-CFLAGS			:= -Wno-conversion
+CFLAGS			:= -Wno-conversion \
+			   -DPWM_LIM="$(PWM_LIM)" \
+			   -DPWM_INVERT="(!!($(PWM_INVERT)))"
 LDFLAGS			:=
 
 # Additional "clean" and "distclean" target files
