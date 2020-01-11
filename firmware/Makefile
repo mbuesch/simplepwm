@@ -18,15 +18,15 @@ BOOT_OFFSET		:=
 # Project fuse bits
 ifeq ($(DEV),t13)
 # ATTiny 13
-# 9.6 MHz, SUT 4ms, BOD 2.7 V, WDT on, SPIEN
+# 9.6 MHz, SUT 4 ms, BOD 2.7 V, WDT on, SPIEN
 LFUSE			:= 0x56
 HFUSE			:= 0xFB
 EFUSE			:=
 else
 # ATTiny 85
-# 8 MHz, BOD 2.7 V, WDT on, SPIEN
+# 8 MHz, SUT 4 ms, BOD 2.7 V, WDT off, SPIEN
 LFUSE			:= 0xD2
-HFUSE			:= 0xCD
+HFUSE			:= 0xDD
 EFUSE			:= 0xFF
 endif
 
