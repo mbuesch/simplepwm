@@ -88,8 +88,8 @@ ISR(ADC_vect)
 	prev_adc = adc;
 
 	/* Transform the value according to the transformation curve. */
-	setpoint = curve_interpolate(transformation_curve,
-				     ARRAY_SIZE(transformation_curve),
+	setpoint = curve_interpolate(adc2sp_transformation_curve,
+				     ARRAY_SIZE(adc2sp_transformation_curve),
 				     adc);
 
 	/* Globally disable interrupts.
