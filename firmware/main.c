@@ -131,10 +131,11 @@ static void disable_bod_then_sleep(void)
 #if USE_DEEP_SLEEP
 ISR(WDT_vect)
 {
-	/* We just woke up from deep sleep. */
 	memory_barrier();
 
 	if (deep_sleep_active) {
+		/* We just woke up from deep sleep.
+		 * Re-enable all used peripherals. */
 		deep_sleep_active = false;
 		power_reduction(false);
 	}
