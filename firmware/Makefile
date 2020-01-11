@@ -1,12 +1,20 @@
+# Build configuration:
+
 # Target device. May be one of:
 #	t13	=> ATTiny13 with reduced feature set.
 #	t85	=> ATTiny85 with full feature set.
 DEV			:= t85
 
 # Limit the maximum PWM duty cycle to this percentage:
-PWM_LIM			:= 96
+PWM_LIM			:= 100
 # Invert the PWM output signal?
 PWM_INVERT		:= 0
+
+
+
+##############################################################################
+##############################################################################
+##############################################################################
 
 # Project name
 NAME			:= simplepwm
