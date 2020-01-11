@@ -147,7 +147,7 @@ ISR(WDT_vect)
 #endif /* USE_DEEP_SLEEP */
 
 /* Early watchdog timer initialization. */
-void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
+static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 {
 	/* Clear WDRF (and all other reset info bits). */
 	MCUSR = 0;
