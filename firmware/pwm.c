@@ -49,6 +49,17 @@ static void port_out_set(bool high)
 		PORTB &= (uint8_t)~(1 << PB0);
 }
 
+/* In high resolution mode TIM0_OVF_vect triggers with a frequency of:
+ *   F_CPU / (256    *    256)
+ *            ^prescaler  ^8-bit-overflow
+ * Thus 65536 CPU cycles are one PWM cycle (duty low + duty high).
+ * The duty cycle setpoint range is 65536.
+ * Therefore the conversion from duty cycle setpoint to CPU cycles is:
+ *   1 to 1
+ */
+#define PWM_SP_TO_CPU_CYC_MUL	1u /* Setpoint to cycle multiplicator */
+#define PWM_SP_TO_CPU_CYC_DIV	1u /* Setpoint to cycle divisor */
+
 /* PWM low frequency / high resolution software interrupt handler */
 ISR(TIM0_OVF_vect)
 {
