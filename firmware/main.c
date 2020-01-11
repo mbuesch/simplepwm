@@ -34,6 +34,7 @@
 
 /* Go into deep sleep? */
 static bool deep_sleep_request;
+static bool deep_sleep_active;
 
 
 void request_deep_sleep(void)
@@ -133,8 +134,10 @@ ISR(WDT_vect)
 	/* We just woke up from deep sleep. */
 	memory_barrier();
 
-	deep_sleep_request = false;
-	power_reduction(false);
+	if (deep_sleep_active) {
+		deep_sleep_active = false;
+		power_reduction(false);
+	}
 
 	memory_barrier();
 	WDTCR |= (1 << WDIE);
@@ -145,7 +148,11 @@ ISR(WDT_vect)
 /* Early watchdog timer initialization. */
 void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 {
+	/* Clear WDRF (and all other reset info bits). */
+	MCUSR = 0;
+	/* Enable the watchdog. */
 	wdt_enable(WDTO_500MS);
+	/* Enable watchdog interrupt for wake up from deep sleep. */
 	if (USE_DEEP_SLEEP)
 		WDTCR |= (1 << WDIE);
 }
@@ -160,14 +167,19 @@ int __attribute__((__OS_main__)) main(void)
 
 	while (1) {
 		cli();
+
 		memory_barrier();
 		deep_sleep = (USE_DEEP_SLEEP && deep_sleep_request);
+		deep_sleep_active = deep_sleep;
+		deep_sleep_request = false;
+
 		if (deep_sleep) {
 			set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 			power_reduction(true);
 		} else {
 			set_sleep_mode(SLEEP_MODE_IDLE);
 		}
+
 		sleep_enable();
 		if (deep_sleep) {
 			/* Disable BOD, then enter sleep mode. */
