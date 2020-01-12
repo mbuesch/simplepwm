@@ -10,6 +10,9 @@ PWM_LIM			:= 100
 # Invert the PWM output signal?
 PWM_INVERT		:= 0
 
+# Invert the ADC input signal?
+ADC_INVERT		:= 1
+
 
 
 ##############################################################################
@@ -75,7 +78,8 @@ BOOT_INSTRUMENT_FUNC	:=
 # Additional compiler flags
 CFLAGS			:= -Wno-conversion \
 			   -DPWM_LIM="$(PWM_LIM)" \
-			   -DPWM_INVERT="(!!($(PWM_INVERT)))"
+			   -DPWM_INVERT="(!!($(PWM_INVERT)))" \
+			   -DADC_INVERT="(!!($(ADC_INVERT)))"
 LDFLAGS			:=
 
 # Additional "clean" and "distclean" target files

@@ -32,7 +32,6 @@
 #define ADC_HYST		1u		/* ADC hysteresis */
 #define ADC_MIN			0u		/* Physical ADC minimum */
 #define ADC_MAX			0x3FFu		/* Physical ADC maximum */
-#define ADC_INVERT		true		/* Invert ADC signal? */
 
 
 enum direction {
