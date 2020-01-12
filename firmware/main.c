@@ -45,6 +45,7 @@ void request_deep_sleep(void)
 /* Enable/disable the power supply to the potentiometer. */
 static void potentiometer_enable(bool enable)
 {
+#if USE_DEEP_SLEEP
 	if (enable) {
 		/* Turn pot power supply on. */
 		/* HI = driven */
@@ -71,6 +72,7 @@ static void potentiometer_enable(bool enable)
 			POTEN_PORT &= (uint8_t)~(1 << POTEN_HI_BIT);
 		}
 	}
+#endif /* USE_DEEP_SLEEP */
 }
 
 static void ports_init(void)
@@ -78,13 +80,13 @@ static void ports_init(void)
 	/* PB0 = output
 	 * PB1 = input / pullup
 	 * PB2 = output / low
-	 * PB3 = output / low
+	 * PB3 = output / high
 	 * PB4 = input / no pullup
 	 * PB5 = input / pullup
 	 */
 	DDRB = (0 << DDB5) | (0 << DDB4) | (1 << DDB3) |\
 	       (1 << DDB2) | (0 << DDB1) | (1 << DDB0);
-	PORTB = (1 << PB5) | (0 << PB4) | (0 << PB3) |\
+	PORTB = (1 << PB5) | (0 << PB4) | (1 << PB3) |\
 		(0 << PB2) | (1 << PB1) | ((PWM_INVERT ? 1 : 0) << PB0);
 }
 
