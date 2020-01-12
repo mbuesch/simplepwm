@@ -23,8 +23,9 @@
 #include "util.h"
 
 
-/* Active PWM setpoint */
-static uint16_t current_pwm_setpoint;
+/* Active PWM mode and setpoint. */
+static uint8_t active_pwm_mode;
+static uint16_t active_pwm_setpoint;
 
 
 #if PWM_INVERT == false
@@ -71,7 +72,7 @@ ISR(TIM0_OVF_vect)
 	 * The calculated value is a CPU delay loop value and thus
 	 * depends on the CPU frequency. */
 	memory_barrier();
-	tmp = current_pwm_setpoint;
+	tmp = active_pwm_setpoint;
 	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
 	delay_count = (uint16_t)min(tmp, UINT16_MAX);
 
@@ -144,7 +145,6 @@ void pwm_set(uint16_t setpoint, uint8_t mode)
 {
 	uint32_t pwm_range;
 	uint8_t pwm;
-	static uint8_t active_mode = PWM_UNKNOWN_MODE;
 
 	/* Calculate PWM value from the setpoint value */
 	pwm_range = PWM_POSLIM - PWM_NEGLIM;
@@ -156,10 +156,10 @@ void pwm_set(uint16_t setpoint, uint8_t mode)
 		pwm = (uint8_t)(PWM_MAX - pwm);
 
 	/* Store the setpoint for use by TIM0_OVF interrupt. */
-	current_pwm_setpoint = setpoint;
+	active_pwm_setpoint = setpoint;
 	memory_barrier();
 
-	if (mode != active_mode) {
+	if (mode != active_pwm_mode) {
 		/* Mode changed. Disable the timer before reconfiguring. */
 		TCCR0B = 0u;
 	}
@@ -187,8 +187,8 @@ void pwm_set(uint16_t setpoint, uint8_t mode)
 		}
 	}
 
-	if (mode != active_mode) {
-		active_mode = mode;
+	if (mode != active_pwm_mode) {
+		active_pwm_mode = mode;
 
 		/* Reset the timer counter. */
 		TCNT0 = PWM_INVERT ? 0u : 0xFFu;
@@ -220,7 +220,11 @@ void pwm_set(uint16_t setpoint, uint8_t mode)
 /* Initialize the PWM timer. */
 void pwm_init(bool enable)
 {
+	/* Reset mode. */
+	active_pwm_mode = PWM_UNKNOWN_MODE;
+	/* Stop timer. */
 	TCCR0B = 0u;
+	/* Initialize output. */
 	if (enable)
 		pwm_set(0u, PWM_HW_MODE);
 	else
