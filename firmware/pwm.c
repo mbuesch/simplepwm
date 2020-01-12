@@ -21,6 +21,7 @@
 #include "compat.h"
 #include "pwm.h"
 #include "util.h"
+#include "main.h"
 
 
 /* Active PWM mode and setpoint. */
@@ -64,7 +65,6 @@ static void port_out_set(bool high)
 /* PWM low frequency / high resolution software interrupt handler */
 ISR(TIM0_OVF_vect)
 {
-	uint8_t delay_count8;
 	uint16_t delay_count;
 	uint32_t tmp;
 
@@ -85,6 +85,7 @@ ISR(TIM0_OVF_vect)
 			ASM_PWM_OUT_LOW
 		: : ASM_INPUTS
 		: );
+#if !SMALL_DEVICE
 	} else if (delay_count == 1) {
 		/* 1 clock delay */
 
@@ -105,7 +106,7 @@ ISR(TIM0_OVF_vect)
 	} else if (delay_count / 3u <= 0xFFu) {
 		/* 3 clocks per loop iteration
 		 * -> divide count */
-		delay_count8 = (uint8_t)(delay_count / 3u);
+		uint8_t delay_count8 = (uint8_t)(delay_count / 3u);
 
 		__asm__ __volatile__ (
 			ASM_PWM_OUT_HIGH
@@ -116,6 +117,7 @@ ISR(TIM0_OVF_vect)
 		:                 "0" (delay_count8),
 		  ASM_INPUTS
 		: );
+#endif /* !SMALL_DEVICE */
 	} else {
 		/* 4 clocks per loop iteration
 		 * -> divide count */

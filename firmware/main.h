@@ -4,9 +4,18 @@
 #include "util.h"
 
 
-/* Sleep mode */
+/* If this is a small device with small flash size,
+ * set SMALL_DEVICE to 1. */
 #ifdef __AVR_ATtiny13__
-# warning "Deep sleep disabled on ATTiny13."
+# define SMALL_DEVICE		1
+#else
+# define SMALL_DEVICE		0
+#endif
+
+
+/* Sleep mode */
+#if SMALL_DEVICE
+# warning "Deep sleep disabled on small microcontroller (t13)."
 # define USE_DEEP_SLEEP		0
 #else
 # define USE_DEEP_SLEEP		1
