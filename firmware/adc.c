@@ -26,6 +26,7 @@
 #include "curve.h"
 #include "curve_data.h"
 #include "pwm.h"
+#include "filter.h"
 
 
 /* ADC configuration. */
@@ -34,18 +35,16 @@
 #define ADC_MAX			0x3FFu		/* Physical ADC maximum */
 
 
-enum direction {
-	DIR_DOWN,
-	DIR_UP,
-};
+static bool adc_bootstrap;
+static struct lp_filter adc_filter;
+
 
 /* ADC conversion complete interrupt service routine */
 ISR(ADC_vect)
 {
 	uint16_t adc;
-	uint16_t setpoint;
-	static uint16_t prev_adc = ADC_MIN;
-	static enum direction prev_dir = DIR_DOWN;
+	uint16_t raw_setpoint;
+	uint16_t filt_setpoint;
 
 	memory_barrier();
 
@@ -60,36 +59,22 @@ ISR(ADC_vect)
 	if (ADC_INVERT)
 		adc = ADC_MAX - adc;
 
-//TODO moving average?
-
-	/* Suppress ADC jitter */
-	if (adc < prev_adc) {
-		/* The ADC value decreased.
-		 * If the ADC value increased in the previous step,
-		 * don't let it decrease now, if the difference is small. */
-		if (prev_dir == DIR_UP) {
-			if (prev_adc - adc <= ADC_HYST)
-				adc = prev_adc;
-			else
-				prev_dir = DIR_DOWN;
-		}
-	} else if (adc > prev_adc) {
-		/* The ADC value increased.
-		 * If the ADC value decreased in the previous step,
-		 * don't let it increase now, if the difference is small. */
-		if (prev_dir == DIR_DOWN) {
-			if (adc - prev_adc <= ADC_HYST)
-				adc = prev_adc;
-			else
-				prev_dir = DIR_UP;
-		}
-	}
-	prev_adc = adc;
-
 	/* Transform the value according to the transformation curve. */
-	setpoint = curve_interpolate(adc2sp_transformation_curve,
-				     ARRAY_SIZE(adc2sp_transformation_curve),
-				     adc);
+	raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
+					 ARRAY_SIZE(adc2sp_transformation_curve),
+					 adc);
+
+	/* Filter the setpoint value. */
+	filt_setpoint = lp_filter_run(&adc_filter, raw_setpoint);
+	/* If bootstrapping and the filter is still zero,
+	 * do not use the filtered value, yet.
+	 * This avoids falling back into deep sleep mode right away. */
+	if (adc_bootstrap) {
+		if (filt_setpoint == 0u)
+			filt_setpoint = raw_setpoint;
+		else
+			adc_bootstrap = false;
+	}
 
 	/* Globally disable interrupts.
 	 * and re-enable the ADC interrupt.
@@ -97,22 +82,22 @@ ISR(ADC_vect)
 	cli();
 	ADCSRA |= (1u << ADIF) | (1u << ADIE);
 
-	if (setpoint > 0u &&
-	    setpoint <= PWM_HIGHRES_SP_THRES) {
+	if (filt_setpoint > 0u &&
+	    filt_setpoint <= PWM_HIGHRES_SP_THRES) {
 		/* Small PWM duty cycles are handled with a much
 		 * much higher resolution, but with much lower frequency
 		 * in the PWM timer interrupt. */
-		pwm_set(setpoint, PWM_IRQ_MODE);
+		pwm_set(filt_setpoint, PWM_IRQ_MODE);
 	} else {
 		/* Normal PWM duty cycle.
 		 * Use high frequency low resolution PWM.
 		 * Disable interrupt mode. */
-		pwm_set(setpoint, PWM_HW_MODE);
+		pwm_set(filt_setpoint, PWM_HW_MODE);
 	}
 
 	if (USE_DEEP_SLEEP) {
 		/* If the PWM is disabled, request deep sleep to save power. */
-		if (setpoint == 0u) {
+		if (filt_setpoint == 0u) {
 			/* Request a microcontroller deep sleep. */
 			request_deep_sleep();
 		}
@@ -129,6 +114,9 @@ ISR(ADC_vect)
 /* Initialize the input ADC measurement. */
 void adc_init(bool enable)
 {
+	lp_filter_reset(&adc_filter);
+	adc_bootstrap = true;
+
 	/* Disable ADC unit. */
 	ADCSRA = 0;
 	/* Disable ADC2 digital input */
