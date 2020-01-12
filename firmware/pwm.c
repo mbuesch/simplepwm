@@ -223,12 +223,15 @@ void pwm_init(bool enable)
 {
 	/* Reset mode. */
 	active_pwm_mode = PWM_UNKNOWN_MODE;
-	/* Stop timer. */
-	TCCR0B = 0u;
-	TCCR0A = 0u;
+
 	/* Initialize output. */
-	if (enable)
+	if (enable) {
 		pwm_set(0u, PWM_HW_MODE);
-	else
+	} else {
+		/* Stop timer. */
+		TCCR0B = 0u;
+		TCCR0A = 0u;
+		/* Set output to idle state. */
 		port_out_set(false);
+	}
 }
