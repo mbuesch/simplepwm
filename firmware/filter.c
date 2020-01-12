@@ -23,18 +23,16 @@
 #include "util.h"
 
 
-#define FILTER_SHIFT	9
-
-
 uint16_t lp_filter_run(struct lp_filter *lp,
+		       uint8_t shift,
 		       uint16_t in)
 {
 	uint32_t buf;
 
 	buf = lp->filter_buf;
-	buf = (buf - (buf >> FILTER_SHIFT)) + in;
+	buf = (buf - (buf >> shift)) + in;
 	lp->filter_buf = buf;
 
-	return (uint16_t)min(buf >> FILTER_SHIFT,
+	return (uint16_t)min(buf >> shift,
 			     (uint32_t)UINT16_MAX);
 }

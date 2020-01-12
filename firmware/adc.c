@@ -34,6 +34,8 @@
 #define ADC_MIN			0u		/* Physical ADC minimum */
 #define ADC_MAX			0x3FFu		/* Physical ADC maximum */
 
+#define ADC_FILTER_SHIFT	9
+
 
 static bool adc_bootstrap;
 static struct lp_filter adc_filter;
@@ -65,7 +67,9 @@ ISR(ADC_vect)
 					 adc);
 
 	/* Filter the setpoint value. */
-	filt_setpoint = lp_filter_run(&adc_filter, raw_setpoint);
+	filt_setpoint = lp_filter_run(&adc_filter,
+				      ADC_FILTER_SHIFT,
+				      raw_setpoint);
 	/* If bootstrapping and the filter is still zero,
 	 * do not use the filtered value, yet.
 	 * This avoids falling back into deep sleep mode right away. */

@@ -21,6 +21,7 @@ static inline void lp_filter_reset(struct lp_filter *lp)
 }
 
 uint16_t lp_filter_run(struct lp_filter *lp,
+		       uint8_t shift,
 		       uint16_t in);
 
 #endif /* FILTER_H_ */
