@@ -44,9 +44,6 @@ uint16_t curve_interpolate(const struct curve_point __flash *curve,
 	uint16_t y;
 	uint32_t tmp;
 
-	if (!curve_size)
-		return x;
-
 	/* Find the curve points
 	 * left handed and right handed to the x value. */
 	lhp = &curve[0];
