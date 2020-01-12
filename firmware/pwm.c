@@ -28,12 +28,12 @@ static uint8_t active_pwm_mode;
 static uint16_t active_pwm_setpoint;
 
 
-#if PWM_INVERT == false
-# define ASM_PWM_OUT_HIGH	"sbi %[_OUT_PORT], %[_OUT_BIT] \n"
-# define ASM_PWM_OUT_LOW	"cbi %[_OUT_PORT], %[_OUT_BIT] \n"
-#else
+#if PWM_INVERT
 # define ASM_PWM_OUT_HIGH	"cbi %[_OUT_PORT], %[_OUT_BIT] \n"
 # define ASM_PWM_OUT_LOW	"sbi %[_OUT_PORT], %[_OUT_BIT] \n"
+#else
+# define ASM_PWM_OUT_HIGH	"sbi %[_OUT_PORT], %[_OUT_BIT] \n"
+# define ASM_PWM_OUT_LOW	"cbi %[_OUT_PORT], %[_OUT_BIT] \n"
 #endif
 
 #define ASM_INPUTS					\
@@ -180,9 +180,10 @@ void pwm_set(uint16_t setpoint, uint8_t mode)
 	if (mode == PWM_HW_MODE) {
 		/* Set the duty cycle in hardware. */
 		if (pwm == PWM_MIN) {
-			port_out_set(true);
+			/* Zero duty cycle. Set HW pin directly. */
+			PORTB |= (1 << PB0);
 		} else {
-			port_out_set(false);
+			/* Non-zero duty cycle. Use timer to drive pin. */
 			OCR0A = pwm;
 		}
 	}
@@ -224,6 +225,7 @@ void pwm_init(bool enable)
 	active_pwm_mode = PWM_UNKNOWN_MODE;
 	/* Stop timer. */
 	TCCR0B = 0u;
+	TCCR0A = 0u;
 	/* Initialize output. */
 	if (enable)
 		pwm_set(0u, PWM_HW_MODE);
