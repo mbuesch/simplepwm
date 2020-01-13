@@ -169,14 +169,17 @@ ISR(ADC_vect)
 	memory_barrier();
 }
 
-/* Initialize the input ADC measurement. */
-void adc_init(bool enable)
+/* Reset the ADC filter. */
+void adc_reset(void)
 {
 	lp_filter_reset(&adc_filter);
 	adc_bootstrap = true;
-
 	memory_barrier();
+}
 
+/* Initialize the input ADC measurement. */
+void adc_init(bool enable)
+{
 	/* Disable ADC unit. */
 	ADCSRA = 0;
 	/* Disable ADC2 digital input */

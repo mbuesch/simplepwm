@@ -142,6 +142,7 @@ static void power_reduction(bool full)
 		PRR = (1 << PRTIM1) | (0 << PRTIM0) | (1 << PRUSI) | (0 << PRADC);
 #endif
 		potentiometer_enable(true);
+		adc_reset();
 		adc_init(true);
 		pwm_init(true);
 	}
