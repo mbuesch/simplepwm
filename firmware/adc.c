@@ -33,13 +33,24 @@
 #define ADC_HYST		1u		/* ADC hysteresis */
 #define ADC_MIN			0u		/* Physical ADC minimum */
 #define ADC_MAX			0x3FFu		/* Physical ADC maximum */
+#define ADC_VBG_MV		1100u		/* Vbg in millivolts. */
 
 #define ADC_FILTER_SHIFT	9
 
 
 static bool adc_bootstrap;
 static struct lp_filter adc_filter;
+static bool adc_battery_meas;
+static uint8_t adc_delay;
 
+
+/* Request a measurement of the battery voltage.
+ * Interrupts must be disabled before calling this function. */
+void adc_request_battery_measurement(void)
+{
+	adc_battery_meas = true;
+	adc_init(true);
+}
 
 /* ADC conversion complete interrupt service routine */
 ISR(ADC_vect)
@@ -47,6 +58,8 @@ ISR(ADC_vect)
 	uint16_t adc;
 	uint16_t raw_setpoint;
 	uint16_t filt_setpoint;
+	uint16_t vcc_mv;
+	uint32_t tmp;
 
 	memory_barrier();
 
@@ -58,52 +71,90 @@ ISR(ADC_vect)
 
 	/* Read the analog input */
 	adc = ADC;
-	if (ADC_INVERT)
-		adc = ADC_MAX - adc;
 
-	/* Transform the value according to the transformation curve. */
-	raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
-					 ARRAY_SIZE(adc2sp_transformation_curve),
-					 adc);
+	if (adc_battery_meas && USE_BAT_MONITOR) {
+		/* Battery voltage measurement mode. */
 
-	/* Filter the setpoint value. */
-	filt_setpoint = lp_filter_run(&adc_filter,
-				      ADC_FILTER_SHIFT,
-				      raw_setpoint);
-	/* If bootstrapping and the filter is still zero,
-	 * do not use the filtered value, yet.
-	 * This avoids falling back into deep sleep mode right away. */
-	if (adc_bootstrap) {
-		if (filt_setpoint == 0u)
-			filt_setpoint = raw_setpoint;
-		else
-			adc_bootstrap = false;
-	}
+		if (adc_delay == 0u) {
+			/* Convert the raw ADC value to millivolts. */
+			if (adc > 0u) {
+				tmp = ((uint32_t)ADC_MAX * (uint32_t)ADC_VBG_MV) / adc;
+				vcc_mv = min(tmp, (uint32_t)UINT16_MAX);
+			} else
+				vcc_mv = 0u; /* This should not happen. */
 
-	/* Globally disable interrupts.
-	 * and re-enable the ADC interrupt.
-	 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
-	cli();
-	ADCSRA |= (1u << ADIF) | (1u << ADIE);
+			/* Disable interrupts for
+			 * - battery reporting
+			 * - PWM shut down
+			 * - ADC re-init */
+			cli();
 
-	if (filt_setpoint > 0u &&
-	    filt_setpoint <= PWM_HIGHRES_SP_THRES) {
-		/* Small PWM duty cycles are handled with a much
-		 * much higher resolution, but with much lower frequency
-		 * in the PWM timer interrupt. */
-		pwm_set(filt_setpoint, PWM_IRQ_MODE);
+			/* Report the measured battery voltage to the
+			 * battery voltage logic. */
+			report_battery_voltage(vcc_mv);
+			if (battery_voltage_is_critical())
+				pwm_set(0u, PWM_HW_MODE);
+
+			/* We're done.
+			 * Turn off battery measurement mode and
+			 * return to normal ADC operation mode
+			 * (if battery voltage is not critical). */
+			adc_battery_meas = false;
+			adc_init(true);
+		} else {
+			/* VRef/Vbg is not stable, yet.
+			 * Continue waiting... */
+			adc_delay--;
+			cli();
+		}
 	} else {
-		/* Normal PWM duty cycle.
-		 * Use high frequency low resolution PWM.
-		 * Disable interrupt mode. */
-		pwm_set(filt_setpoint, PWM_HW_MODE);
-	}
+		/* Normal operation mode. */
 
-	if (USE_DEEP_SLEEP) {
-		/* If the PWM is disabled, request deep sleep to save power. */
-		if (filt_setpoint == 0u) {
-			/* Request a microcontroller deep sleep. */
-			request_deep_sleep();
+		if (ADC_INVERT)
+			adc = ADC_MAX - adc;
+
+		/* Transform the value according to the transformation curve. */
+		raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
+						 ARRAY_SIZE(adc2sp_transformation_curve),
+						 adc);
+
+		/* Filter the setpoint value. */
+		filt_setpoint = lp_filter_run(&adc_filter,
+					      ADC_FILTER_SHIFT,
+					      raw_setpoint);
+		/* If bootstrapping and the filter is still zero,
+		 * do not use the filtered value, yet.
+		 * This avoids falling back into deep sleep mode right away. */
+		if (adc_bootstrap) {
+			if (filt_setpoint == 0u)
+				filt_setpoint = raw_setpoint;
+			else
+				adc_bootstrap = false;
+		}
+
+		/* Globally disable interrupts.
+		 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
+		cli();
+
+		if (filt_setpoint > 0u &&
+		    filt_setpoint <= PWM_HIGHRES_SP_THRES) {
+			/* Small PWM duty cycles are handled with a much
+			 * much higher resolution, but with much lower frequency
+			 * in the PWM timer interrupt. */
+			pwm_set(filt_setpoint, PWM_IRQ_MODE);
+		} else {
+			/* Normal PWM duty cycle.
+			 * Use high frequency low resolution PWM.
+			 * Disable interrupt mode. */
+			pwm_set(filt_setpoint, PWM_HW_MODE);
+		}
+
+		if (USE_DEEP_SLEEP) {
+			/* If the PWM is disabled, request deep sleep to save power. */
+			if (filt_setpoint == 0u) {
+				/* Request a microcontroller deep sleep. */
+				request_deep_sleep();
+			}
 		}
 	}
 
@@ -111,6 +162,9 @@ ISR(ADC_vect)
 	 * Poke the watchdog here. */
 	if (!USE_DEEP_SLEEP)
 		wdt_reset();
+
+	/* Re-enable the ADC interrupt. */
+	ADCSRA |= (1u << ADIF) | (1u << ADIE);
 
 	memory_barrier();
 }
@@ -121,19 +175,41 @@ void adc_init(bool enable)
 	lp_filter_reset(&adc_filter);
 	adc_bootstrap = true;
 
+	memory_barrier();
+
 	/* Disable ADC unit. */
 	ADCSRA = 0;
 	/* Disable ADC2 digital input */
 	DIDR0 = (1 << ADC2D);
-	/* Ref = Vcc; ADC2/PB4; Right adjust */
-	ADMUX = (0 << REFS0) | (0 << ADLAR) | (1 << MUX1) | (0 << MUX0);
 	/* Trigger source = free running */
 	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
 
 	if (enable) {
-		/* Enable and start ADC; free running; PS = 64; IRQ enabled */
-		ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
-			 (1 << ADIF) | (1 << ADIE) |
-			 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
+		if (adc_battery_meas) {
+			/* Ref = 1.1V; in = Vbg; Right adjust */
+			ADMUX = (0 << REFS2) | (1 << REFS1) | (0 << REFS0) |
+				(0 << ADLAR) |
+				(1 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
+			/* Enable and start ADC; free running; PS = 128; IRQ enabled */
+			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
+				 (1 << ADIF) | (1 << ADIE) |
+				 (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+			/* Discard the first few results to compensate
+			 * for Vbg settling time (1 ms). */
+			adc_delay = 5;
+		} else if (!battery_voltage_is_critical()) {
+			/* Ref = Vcc; in = ADC2/PB4; Right adjust */
+			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
+				(0 << ADLAR) |
+				(0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0);
+			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
+			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
+				 (1 << ADIF) | (1 << ADIE) |
+				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
+		} else {
+			/* Battery voltage is critical and no battery measurement
+			 * has been requested.
+			 * Keep the ADC shut down. */
+		}
 	}
 }

@@ -18,5 +18,18 @@
 #ifndef WDIE
 # define WDIE	WDTIE
 #endif
+#ifndef MUX2
+# define MUX2	2
+#endif
+#ifndef MUX3
+# define MUX3	3
+#endif
+#ifndef REFS1
+# define REFS1	7
+#endif
+#ifndef REFS2
+# define REFS2	4
+#endif
+
 
 #endif /* COMPAT_H_ */

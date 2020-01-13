@@ -51,6 +51,17 @@ static void port_out_set(bool high)
 		PORTB &= (uint8_t)~(1 << PB0);
 }
 
+/* Shutdown the PWM and the output. */
+static void pwm_turn_off(void)
+{
+	/* Stop timer. */
+	TCCR0B = 0u;
+	TCCR0A = 0u;
+
+	/* Set output to idle state. */
+	port_out_set(false);
+}
+
 /* In high resolution mode TIM0_OVF_vect triggers with a frequency of:
  *   F_CPU / (256    *    256)
  *            ^prescaler  ^8-bit-overflow
@@ -148,75 +159,88 @@ void pwm_set(uint16_t setpoint, uint8_t mode)
 	uint32_t pwm_range;
 	uint8_t pwm;
 
-	/* Calculate PWM value from the setpoint value */
-	pwm_range = PWM_POSLIM - PWM_NEGLIM;
-	pwm = (uint8_t)(((uint32_t)setpoint * pwm_range) / 0xFFFFu);
-	pwm += PWM_NEGLIM;
+	if (battery_voltage_is_critical()) {
 
-	/* Invert the PWM, if required. */
-	if (!PWM_INVERT)
-		pwm = (uint8_t)(PWM_MAX - pwm);
+		pwm_turn_off();
+		set_battery_mon_interval(60 * 10);
 
-	/* Store the setpoint for use by TIM0_OVF interrupt. */
-	active_pwm_setpoint = setpoint;
-	memory_barrier();
-
-	if (mode != active_pwm_mode) {
-		/* Mode changed. Disable the timer before reconfiguring. */
-		TCCR0B = 0u;
-	}
-
-	if (mode == PWM_IRQ_MODE || pwm == PWM_MIN) {
-		/* In interrupt mode or of the duty cycle is zero,
-		 * do not drive the output pin by hardware. */
-		TCCR0A = (0u << COM0A1) | (0u << COM0A0) |\
-			 (0u << COM0B1) | (0u << COM0B0) |\
-			 (1u << WGM01) | (1u << WGM00);
 	} else {
-		/* Drive the output pin by hardware. */
-		TCCR0A = (1u << COM0A1) | (1u << COM0A0) |\
-			 (0u << COM0B1) | (0u << COM0B0) |\
-			 (1u << WGM01) | (1u << WGM00);
-	}
 
-	if (mode == PWM_HW_MODE) {
-		/* Set the duty cycle in hardware. */
-		if (pwm == PWM_MIN) {
-			/* Zero duty cycle. Set HW pin directly. */
-			PORTB |= (1 << PB0);
-		} else {
-			/* Non-zero duty cycle. Use timer to drive pin. */
-			OCR0A = pwm;
-		}
-	}
+		if (setpoint == 0u)
+			set_battery_mon_interval(60 * 5);
+		else
+			set_battery_mon_interval(10);
 
-	if (mode != active_pwm_mode) {
-		active_pwm_mode = mode;
+		/* Calculate PWM value from the setpoint value */
+		pwm_range = PWM_POSLIM - PWM_NEGLIM;
+		pwm = (uint8_t)(((uint32_t)setpoint * pwm_range) / 0xFFFFu);
+		pwm += PWM_NEGLIM;
 
-		/* Reset the timer counter. */
-		TCNT0 = PWM_INVERT ? 0u : 0xFFu;
+		/* Invert the PWM, if required. */
+		if (!PWM_INVERT)
+			pwm = (uint8_t)(PWM_MAX - pwm);
 
-		/* Set the clock prescaler (fast or slow). */
-		if (mode == PWM_IRQ_MODE) {
-			/* Slow clock (PS=256) */
-			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
-				 (0u << WGM02) |\
-				 (1u << CS02) | (0u << CS01) | (0u << CS00);
+		/* Store the setpoint for use by TIM0_OVF interrupt. */
+		active_pwm_setpoint = setpoint;
+		memory_barrier();
 
-			/* Enable the TIM0_OVF interrupt. */
-			TIMSK |= (1u << TOIE0);
-		} else {
-			/* Fast clock (PS=1) */
-			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
-				 (0u << WGM02) |\
-				 (0u << CS02) | (0u << CS01) | (1u << CS00);
-
-			/* Disable the TIM0_OVF interrupt. */
-			TIMSK &= (uint8_t)~(1u << TOIE0);
+		if (mode != active_pwm_mode) {
+			/* Mode changed. Disable the timer before reconfiguring. */
+			TCCR0B = 0u;
 		}
 
-		/* Clear the interrupt flag. */
-		TIFR = (1u << TOV0);
+		if (mode == PWM_IRQ_MODE || pwm == PWM_MIN) {
+			/* In interrupt mode or of the duty cycle is zero,
+			 * do not drive the output pin by hardware. */
+			TCCR0A = (0u << COM0A1) | (0u << COM0A0) |\
+				 (0u << COM0B1) | (0u << COM0B0) |\
+				 (1u << WGM01) | (1u << WGM00);
+		} else {
+			/* Drive the output pin by hardware. */
+			TCCR0A = (1u << COM0A1) | (1u << COM0A0) |\
+				 (0u << COM0B1) | (0u << COM0B0) |\
+				 (1u << WGM01) | (1u << WGM00);
+		}
+
+		if (mode == PWM_HW_MODE) {
+			/* Set the duty cycle in hardware. */
+			if (pwm == PWM_MIN) {
+				/* Zero duty cycle. Set HW pin directly. */
+				PORTB |= (1 << PB0);
+			} else {
+				/* Non-zero duty cycle. Use timer to drive pin. */
+				OCR0A = pwm;
+			}
+		}
+
+		if (mode != active_pwm_mode) {
+			active_pwm_mode = mode;
+
+			/* Reset the timer counter. */
+			TCNT0 = PWM_INVERT ? 0u : 0xFFu;
+
+			/* Set the clock prescaler (fast or slow). */
+			if (mode == PWM_IRQ_MODE) {
+				/* Slow clock (PS=256) */
+				TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
+					 (0u << WGM02) |\
+					 (1u << CS02) | (0u << CS01) | (0u << CS00);
+
+				/* Enable the TIM0_OVF interrupt. */
+				TIMSK |= (1u << TOIE0);
+			} else {
+				/* Fast clock (PS=1) */
+				TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
+					 (0u << WGM02) |\
+					 (0u << CS02) | (0u << CS01) | (1u << CS00);
+
+				/* Disable the TIM0_OVF interrupt. */
+				TIMSK &= (uint8_t)~(1u << TOIE0);
+			}
+
+			/* Clear the interrupt flag. */
+			TIFR = (1u << TOV0);
+		}
 	}
 }
 
@@ -227,13 +251,8 @@ void pwm_init(bool enable)
 	active_pwm_mode = PWM_UNKNOWN_MODE;
 
 	/* Initialize output. */
-	if (enable) {
+	if (enable)
 		pwm_set(0u, PWM_HW_MODE);
-	} else {
-		/* Stop timer. */
-		TCCR0B = 0u;
-		TCCR0A = 0u;
-		/* Set output to idle state. */
-		port_out_set(false);
-	}
+	else
+		pwm_turn_off();
 }

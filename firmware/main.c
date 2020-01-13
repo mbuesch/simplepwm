@@ -32,14 +32,45 @@
 #define POTEN_HI_BIT		3
 
 
-/* Go into deep sleep? */
-static bool deep_sleep_request;
-static bool deep_sleep_active;
+static struct {
+	bool request;
+	bool active;
+} deep_sleep;
 
+static struct {
+	uint16_t count;
+	uint16_t count_threshold;
+	bool voltage_critical;
+} bat;
+
+#define BAT_CRITICAL_MV		3200u
+
+
+void set_battery_mon_interval(uint16_t seconds)
+{
+	if (USE_BAT_MONITOR) {
+		/* Convert seconds to interval counter threshold.
+		 * WDT IRQ interval is 0.5 seconds. */
+		bat.count_threshold = min((uint32_t)seconds * (uint32_t)2u,
+					  (uint32_t)UINT16_MAX);
+	}
+}
+
+bool battery_voltage_is_critical(void)
+{
+	return bat.voltage_critical && USE_BAT_MONITOR;
+}
+
+void report_battery_voltage(uint16_t vcc_mv)
+{
+	if (USE_BAT_MONITOR)
+		bat.voltage_critical = (vcc_mv <= BAT_CRITICAL_MV);
+}
 
 void request_deep_sleep(void)
 {
-	deep_sleep_request = true;
+	if (USE_DEEP_SLEEP)
+		deep_sleep.request = true;
 }
 
 /* Enable/disable the power supply to the potentiometer. */
@@ -119,6 +150,7 @@ static void power_reduction(bool full)
 /* Disable BOD, then enter sleep mode. */
 static void disable_bod_then_sleep(void)
 {
+	//TODO test if this does actually work
 #if USE_DEEP_SLEEP
 	uint8_t tmp0, tmp1;
 
@@ -148,11 +180,18 @@ ISR(WDT_vect)
 {
 	memory_barrier();
 
-	if (deep_sleep_active) {
+	if (deep_sleep.active) {
 		/* We just woke up from deep sleep.
 		 * Re-enable all used peripherals. */
-		deep_sleep_active = false;
+		deep_sleep.active = false;
 		power_reduction(false);
+	}
+
+	/* Check if we need to measure the battery voltage. */
+	if (++bat.count >= bat.count_threshold) {
+		bat.count = 0;
+		/* Must be called with interrupts disabled. */
+		adc_request_battery_measurement();
 	}
 
 	memory_barrier();
@@ -176,28 +215,30 @@ static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 /* Main program entry point. */
 int __attribute__((__OS_main__)) main(void)
 {
-	bool deep_sleep;
+	bool deep;
 
 	ports_init();
 	power_reduction(false);
+	set_battery_mon_interval(0);
 
 	while (1) {
 		cli();
 
 		memory_barrier();
-		deep_sleep = (USE_DEEP_SLEEP && deep_sleep_request);
-		deep_sleep_active = deep_sleep;
-		deep_sleep_request = false;
+		deep = (USE_DEEP_SLEEP &&
+			(deep_sleep.request ||
+			 battery_voltage_is_critical()));
+		deep_sleep.active = deep;
+		deep_sleep.request = false;
 
-		if (deep_sleep) {
+		if (deep) {
 			set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 			power_reduction(true);
-		} else {
+		} else
 			set_sleep_mode(SLEEP_MODE_IDLE);
-		}
 
 		sleep_enable();
-		if (deep_sleep) {
+		if (deep) {
 			/* Disable BOD, then enter sleep mode. */
 			disable_bod_then_sleep();
 		} else {
