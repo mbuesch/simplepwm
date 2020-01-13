@@ -92,8 +92,12 @@ ISR(ADC_vect)
 			/* Report the measured battery voltage to the
 			 * battery voltage logic. */
 			evaluate_battery_voltage(vcc_mv);
-			if (battery_voltage_is_critical())
-				pwm_set(0u);
+			if (battery_voltage_is_critical()) {
+				/* Turn the output off immediately.
+				 * This also reconfigures the
+				 * battery measurement interval. */
+				output_setpoint(0u);
+			}
 
 			/* We're done.
 			 * Turn off battery measurement mode and
@@ -136,7 +140,8 @@ ISR(ADC_vect)
 		 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
 		cli();
 
-		pwm_set(filt_setpoint);
+		/* Change the output signal (PWM). */
+		output_setpoint(filt_setpoint);
 
 		if (USE_DEEP_SLEEP) {
 			/* If the PWM is disabled, request deep sleep to save power. */

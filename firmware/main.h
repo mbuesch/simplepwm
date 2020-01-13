@@ -24,9 +24,9 @@
 #endif
 
 
-void set_battery_mon_interval(uint16_t seconds);
 bool battery_voltage_is_critical(void);
 void evaluate_battery_voltage(uint16_t vcc_mv);
+void output_setpoint(uint16_t setpoint);
 void request_deep_sleep(void);
 
 #endif /* MAIN_H_ */

@@ -49,8 +49,9 @@ static struct {
 #define BAT_PLAUS_MAX_MV	6500u /* millivolts */
 
 
-/* Set the interval that the battery voltage should be measured in. */
-void set_battery_mon_interval(uint16_t seconds)
+/* Set the interval that the battery voltage should be measured in.
+ * Interrupts shall be disabled before calling this function. */
+static void set_battery_mon_interval(uint16_t seconds)
 {
 	if (USE_BAT_MONITOR) {
 		/* Convert seconds to interval counter threshold.
@@ -77,6 +78,23 @@ void evaluate_battery_voltage(uint16_t vcc_mv)
 		else
 			bat.voltage_critical = false;
 	}
+}
+
+/* Set the output signal (PWM) setpoint.
+ * Interrupts shall be disabled before calling this function. */
+void output_setpoint(uint16_t setpoint)
+{
+	/* Reconfigure the battery measurement interval. */
+	if (battery_voltage_is_critical()) {
+		set_battery_mon_interval(60 * 10);
+	} else {
+		if (setpoint == 0u)
+			set_battery_mon_interval(60 * 5);
+		else
+			set_battery_mon_interval(10);
+	}
+
+	pwm_set(setpoint);
 }
 
 /* Enter deep sleep in the next main loop iteration. */

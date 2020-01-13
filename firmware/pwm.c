@@ -179,9 +179,9 @@ void pwm_set(uint16_t setpoint)
 
 	if (battery_voltage_is_critical()) {
 
+		/* The battery is not Ok. Turn off all outputs. */
 		pwm_turn_off();
 		active_pwm_mode = PWM_UNKNOWN_MODE;
-		set_battery_mon_interval(60 * 10);
 
 	} else {
 		/* Determine the mode */
@@ -197,11 +197,6 @@ void pwm_set(uint16_t setpoint)
 			 * Disable interrupt mode. */
 			mode = PWM_HW_MODE;
 		}
-
-		if (setpoint == 0u)
-			set_battery_mon_interval(60 * 5);
-		else
-			set_battery_mon_interval(10);
 
 		/* Calculate PWM value from the setpoint value */
 		pwm_range = PWM_POSLIM - PWM_NEGLIM;
