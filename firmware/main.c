@@ -49,6 +49,7 @@ static struct {
 #define BAT_PLAUS_MAX_MV	6500u /* millivolts */
 
 
+/* Set the interval that the battery voltage should be measured in. */
 void set_battery_mon_interval(uint16_t seconds)
 {
 	if (USE_BAT_MONITOR) {
@@ -59,12 +60,14 @@ void set_battery_mon_interval(uint16_t seconds)
 	}
 }
 
+/* Returns true, if the battery voltage reached a critical level. */
 bool battery_voltage_is_critical(void)
 {
 	return bat.voltage_critical && USE_BAT_MONITOR;
 }
 
-void report_battery_voltage(uint16_t vcc_mv)
+/* Evaluate the measured battery voltage. */
+void evaluate_battery_voltage(uint16_t vcc_mv)
 {
 	if (USE_BAT_MONITOR) {
 		if (vcc_mv > BAT_PLAUS_MAX_MV)
@@ -76,6 +79,7 @@ void report_battery_voltage(uint16_t vcc_mv)
 	}
 }
 
+/* Enter deep sleep in the next main loop iteration. */
 void request_deep_sleep(void)
 {
 	if (USE_DEEP_SLEEP)
@@ -115,6 +119,7 @@ static void potentiometer_enable(bool enable)
 #endif /* USE_DEEP_SLEEP */
 }
 
+/* Initialize I/O ports. */
 static void ports_init(void)
 {
 	/* PB0 = output

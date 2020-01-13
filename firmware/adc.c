@@ -84,14 +84,14 @@ ISR(ADC_vect)
 				vcc_mv = UINT16_MAX;
 
 			/* Disable interrupts for
-			 * - battery reporting
+			 * - battery voltage evaluation
 			 * - PWM shut down
 			 * - ADC re-init */
 			cli();
 
 			/* Report the measured battery voltage to the
 			 * battery voltage logic. */
-			report_battery_voltage(vcc_mv);
+			evaluate_battery_voltage(vcc_mv);
 			if (battery_voltage_is_critical())
 				pwm_set(0u, PWM_HW_MODE);
 
