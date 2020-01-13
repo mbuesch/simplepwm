@@ -43,7 +43,10 @@ static struct {
 	bool voltage_critical;
 } bat;
 
-#define BAT_CRITICAL_MV		3200u
+/* Battery voltages below this threshold are critical: */
+#define BAT_CRITICAL_MIN_MV	3200u /* millivolts */
+/* Battery voltages above this threshold are not plausible: */
+#define BAT_PLAUS_MAX_MV	6500u /* millivolts */
 
 
 void set_battery_mon_interval(uint16_t seconds)
@@ -63,8 +66,14 @@ bool battery_voltage_is_critical(void)
 
 void report_battery_voltage(uint16_t vcc_mv)
 {
-	if (USE_BAT_MONITOR)
-		bat.voltage_critical = (vcc_mv <= BAT_CRITICAL_MV);
+	if (USE_BAT_MONITOR) {
+		if (vcc_mv > BAT_PLAUS_MAX_MV)
+			bat.voltage_critical = true;
+		else if (vcc_mv < BAT_CRITICAL_MIN_MV)
+			bat.voltage_critical = true;
+		else
+			bat.voltage_critical = false;
+	}
 }
 
 void request_deep_sleep(void)
