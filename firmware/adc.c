@@ -78,10 +78,10 @@ ISR(ADC_vect)
 		if (adc_delay == 0u) {
 			/* Convert the raw ADC value to millivolts. */
 			if (adc > 0u) {
-				tmp = ((uint32_t)ADC_MAX * (uint32_t)ADC_VBG_MV) / adc;
+				tmp = ((uint32_t)(ADC_MAX + 1u) * (uint32_t)ADC_VBG_MV) / (uint32_t)adc;
 				vcc_mv = min(tmp, (uint32_t)UINT16_MAX);
 			} else
-				vcc_mv = 0u; /* This should not happen. */
+				vcc_mv = UINT16_MAX;
 
 			/* Disable interrupts for
 			 * - battery reporting
@@ -189,17 +189,17 @@ void adc_init(bool enable)
 
 	if (enable) {
 		if (adc_battery_meas) {
-			/* Ref = 1.1V; in = Vbg; Right adjust */
-			ADMUX = (0 << REFS2) | (1 << REFS1) | (0 << REFS0) |
+			/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
+			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
 				(0 << ADLAR) |
 				(1 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
-			/* Enable and start ADC; free running; PS = 128; IRQ enabled */
+			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
 			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
 				 (1 << ADIF) | (1 << ADIE) |
-				 (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
 			/* Discard the first few results to compensate
 			 * for Vbg settling time (1 ms). */
-			adc_delay = 5;
+			adc_delay = 10;
 		} else if (!battery_voltage_is_critical()) {
 			/* Ref = Vcc; in = ADC2/PB4; Right adjust */
 			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
