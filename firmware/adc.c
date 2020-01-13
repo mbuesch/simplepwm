@@ -93,7 +93,7 @@ ISR(ADC_vect)
 			 * battery voltage logic. */
 			evaluate_battery_voltage(vcc_mv);
 			if (battery_voltage_is_critical())
-				pwm_set(0u, PWM_HW_MODE);
+				pwm_set(0u);
 
 			/* We're done.
 			 * Turn off battery measurement mode and
@@ -136,18 +136,7 @@ ISR(ADC_vect)
 		 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
 		cli();
 
-		if (filt_setpoint > 0u &&
-		    filt_setpoint <= PWM_HIGHRES_SP_THRES) {
-			/* Small PWM duty cycles are handled with a much
-			 * much higher resolution, but with much lower frequency
-			 * in the PWM timer interrupt. */
-			pwm_set(filt_setpoint, PWM_IRQ_MODE);
-		} else {
-			/* Normal PWM duty cycle.
-			 * Use high frequency low resolution PWM.
-			 * Disable interrupt mode. */
-			pwm_set(filt_setpoint, PWM_HW_MODE);
-		}
+		pwm_set(filt_setpoint);
 
 		if (USE_DEEP_SLEEP) {
 			/* If the PWM is disabled, request deep sleep to save power. */

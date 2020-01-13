@@ -24,6 +24,23 @@
 #include "main.h"
 
 
+/* Physical PWM limits */
+#define PWM_MIN			0u
+#define PWM_MAX			0xFFu
+
+/* Logical PWM limits */
+#define PWM_NEGLIM		(PWM_MIN + 0u)
+#define PWM_POSLIM		((uint8_t)((PWM_MAX * PWM_LIM) / 100u))
+
+/* High resolution setpoint threshold */
+#define PWM_HIGHRES_SP_THRES	2000u
+
+/* PWM timer modes for pwm_set() */
+#define PWM_UNKNOWN_MODE	0u
+#define PWM_IRQ_MODE		1u /* Interrupt mode */
+#define PWM_HW_MODE		2u /* Hardware-PWM mode */
+
+
 /* Active PWM mode and setpoint. */
 static uint8_t active_pwm_mode;
 static uint16_t active_pwm_setpoint;
@@ -154,17 +171,32 @@ ISR(TIM0_OVF_vect)
 }
 
 /* Set the PWM setpoint. */
-void pwm_set(uint16_t setpoint, uint8_t mode)
+void pwm_set(uint16_t setpoint)
 {
 	uint32_t pwm_range;
 	uint8_t pwm;
+	uint8_t mode;
 
 	if (battery_voltage_is_critical()) {
 
 		pwm_turn_off();
+		active_pwm_mode = PWM_UNKNOWN_MODE;
 		set_battery_mon_interval(60 * 10);
 
 	} else {
+		/* Determine the mode */
+		if (setpoint > 0u &&
+		    setpoint <= PWM_HIGHRES_SP_THRES) {
+			/* Small PWM duty cycles are handled with a much
+			 * much higher resolution, but with much lower frequency
+			 * in the PWM timer interrupt. */
+			mode = PWM_IRQ_MODE;
+		} else {
+			/* Normal PWM duty cycle.
+			 * Use high frequency low resolution PWM.
+			 * Disable interrupt mode. */
+			mode = PWM_HW_MODE;
+		}
 
 		if (setpoint == 0u)
 			set_battery_mon_interval(60 * 5);
@@ -222,16 +254,16 @@ void pwm_set(uint16_t setpoint, uint8_t mode)
 			/* Set the clock prescaler (fast or slow). */
 			if (mode == PWM_IRQ_MODE) {
 				/* Slow clock (PS=256) */
-				TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
-					 (0u << WGM02) |\
+				TCCR0B = (0u << FOC0A) | (0u << FOC0B) |
+					 (0u << WGM02) |
 					 (1u << CS02) | (0u << CS01) | (0u << CS00);
 
 				/* Enable the TIM0_OVF interrupt. */
 				TIMSK |= (1u << TOIE0);
 			} else {
 				/* Fast clock (PS=1) */
-				TCCR0B = (0u << FOC0A) | (0u << FOC0B) |\
-					 (0u << WGM02) |\
+				TCCR0B = (0u << FOC0A) | (0u << FOC0B) |
+					 (0u << WGM02) |
 					 (0u << CS02) | (0u << CS01) | (1u << CS00);
 
 				/* Disable the TIM0_OVF interrupt. */
@@ -252,7 +284,7 @@ void pwm_init(bool enable)
 
 	/* Initialize output. */
 	if (enable)
-		pwm_set(0u, PWM_HW_MODE);
+		pwm_set(0u);
 	else
 		pwm_turn_off();
 }

@@ -4,23 +4,7 @@
 #include "util.h"
 
 
-/* Physical PWM limits */
-#define PWM_MIN			0u
-#define PWM_MAX			0xFFu
-
-/* Logical PWM limits */
-#define PWM_NEGLIM		(PWM_MIN + 0u)
-#define PWM_POSLIM		((uint8_t)((PWM_MAX * PWM_LIM) / 100u))
-
-/* High resolution setpoint threshold */
-#define PWM_HIGHRES_SP_THRES	2000u
-
-/* PWM timer modes for pwm_set() */
-#define PWM_UNKNOWN_MODE	0u
-#define PWM_IRQ_MODE		1u /* Interrupt mode */
-#define PWM_HW_MODE		2u /* Hardware-PWM mode */
-
-void pwm_set(uint16_t setpoint, uint8_t mode);
+void pwm_set(uint16_t setpoint);
 void pwm_init(bool enable);
 
 #endif /* PWM_H_ */
