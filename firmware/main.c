@@ -48,6 +48,11 @@ static struct {
 /* Battery voltages above this threshold are not plausible: */
 #define BAT_PLAUS_MAX_MV	6500u /* millivolts */
 
+/* Battery monitoring intervals (in seconds). */
+#define BAT_INT_ON		10        /* During PWM output on */
+#define BAT_INT_OFF		(60 * 5)  /* During PWM output off (setpoint=0) */
+#define BAT_INT_CRIT		(60 * 10) /* During low battery */
+
 
 /* Set the interval that the battery voltage should be measured in.
  * Interrupts shall be disabled before calling this function. */
@@ -86,14 +91,15 @@ void output_setpoint(uint16_t setpoint)
 {
 	/* Reconfigure the battery measurement interval. */
 	if (battery_voltage_is_critical()) {
-		set_battery_mon_interval(60 * 10);
+		set_battery_mon_interval(BAT_INT_CRIT);
 	} else {
 		if (setpoint == 0u)
-			set_battery_mon_interval(60 * 5);
+			set_battery_mon_interval(BAT_INT_OFF);
 		else
-			set_battery_mon_interval(10);
+			set_battery_mon_interval(BAT_INT_ON);
 	}
 
+	/* Set the PWM output signal. */
 	pwm_set(setpoint);
 }
 
