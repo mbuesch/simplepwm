@@ -41,9 +41,10 @@
 #define PWM_HW_MODE		2u /* Hardware-PWM mode */
 
 
-/* Active PWM mode and setpoint. */
-static uint8_t active_pwm_mode;
-static uint16_t active_pwm_setpoint;
+static struct {
+	uint8_t active_mode;
+	uint16_t active_setpoint;
+} pwm;
 
 
 #if PWM_INVERT
@@ -100,7 +101,7 @@ ISR(TIM0_OVF_vect)
 	 * The calculated value is a CPU delay loop value and thus
 	 * depends on the CPU frequency. */
 	memory_barrier();
-	tmp = active_pwm_setpoint;
+	tmp = pwm.active_setpoint;
 	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
 	delay_count = (uint16_t)min(tmp, UINT16_MAX);
 
@@ -173,15 +174,15 @@ ISR(TIM0_OVF_vect)
 /* Set the PWM setpoint. */
 void pwm_set(uint16_t setpoint)
 {
-	uint32_t pwm_range;
-	uint8_t pwm;
+	uint32_t pwm_duty_range;
+	uint8_t pwm_duty;
 	uint8_t mode;
 
 	if (battery_voltage_is_critical()) {
 
 		/* The battery is not Ok. Turn off all outputs. */
 		pwm_turn_off();
-		active_pwm_mode = PWM_UNKNOWN_MODE;
+		pwm.active_mode = PWM_UNKNOWN_MODE;
 
 	} else {
 		/* Determine the mode */
@@ -198,25 +199,25 @@ void pwm_set(uint16_t setpoint)
 			mode = PWM_HW_MODE;
 		}
 
-		/* Calculate PWM value from the setpoint value */
-		pwm_range = PWM_POSLIM - PWM_NEGLIM;
-		pwm = (uint8_t)(((uint32_t)setpoint * pwm_range) / 0xFFFFu);
-		pwm += PWM_NEGLIM;
+		/* Calculate PWM duty cycle value from the setpoint value */
+		pwm_duty_range = PWM_POSLIM - PWM_NEGLIM;
+		pwm_duty = (uint8_t)(((uint32_t)setpoint * pwm_duty_range) / 0xFFFFu);
+		pwm_duty += PWM_NEGLIM;
 
 		/* Invert the PWM, if required. */
 		if (!PWM_INVERT)
-			pwm = (uint8_t)(PWM_MAX - pwm);
+			pwm_duty = (uint8_t)(PWM_MAX - pwm_duty);
 
 		/* Store the setpoint for use by TIM0_OVF interrupt. */
-		active_pwm_setpoint = setpoint;
+		pwm.active_setpoint = setpoint;
 		memory_barrier();
 
-		if (mode != active_pwm_mode) {
+		if (mode != pwm.active_mode) {
 			/* Mode changed. Disable the timer before reconfiguring. */
 			TCCR0B = 0u;
 		}
 
-		if (mode == PWM_IRQ_MODE || pwm == PWM_MIN) {
+		if (mode == PWM_IRQ_MODE || pwm_duty == PWM_MIN) {
 			/* In interrupt mode or of the duty cycle is zero,
 			 * do not drive the output pin by hardware. */
 			TCCR0A = (0u << COM0A1) | (0u << COM0A0) |\
@@ -231,17 +232,17 @@ void pwm_set(uint16_t setpoint)
 
 		if (mode == PWM_HW_MODE) {
 			/* Set the duty cycle in hardware. */
-			if (pwm == PWM_MIN) {
+			if (pwm_duty == PWM_MIN) {
 				/* Zero duty cycle. Set HW pin directly. */
 				PORTB |= (1 << PB0);
 			} else {
 				/* Non-zero duty cycle. Use timer to drive pin. */
-				OCR0A = pwm;
+				OCR0A = pwm_duty;
 			}
 		}
 
-		if (mode != active_pwm_mode) {
-			active_pwm_mode = mode;
+		if (mode != pwm.active_mode) {
+			pwm.active_mode = mode;
 
 			/* Reset the timer counter. */
 			TCNT0 = PWM_INVERT ? 0u : 0xFFu;
@@ -275,7 +276,7 @@ void pwm_set(uint16_t setpoint)
 void pwm_init(bool enable)
 {
 	/* Reset mode. */
-	active_pwm_mode = PWM_UNKNOWN_MODE;
+	pwm.active_mode = PWM_UNKNOWN_MODE;
 
 	/* Initialize output. */
 	if (enable)
