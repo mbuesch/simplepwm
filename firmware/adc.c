@@ -38,16 +38,18 @@
 #define ADC_FILTER_SHIFT	9
 
 
-static bool adc_bootstrap;
-static struct lp_filter adc_filter;
-static bool adc_battery_meas;
-static uint8_t adc_delay;
+static struct {
+	bool bootstrap;
+	struct lp_filter filter;
+	bool battery_meas;
+	uint8_t delay;
+} adc;
 
 
 /* Returns true, if a battery measurement conversion is currently running. */
 bool adc_battery_measurement_running(void)
 {
-	return adc_battery_meas && USE_BAT_MONITOR;
+	return adc.battery_meas && USE_BAT_MONITOR;
 }
 
 /* Request a measurement of the battery voltage.
@@ -55,7 +57,7 @@ bool adc_battery_measurement_running(void)
 void adc_request_battery_measurement(void)
 {
 	if (USE_BAT_MONITOR) {
-		adc_battery_meas = true;
+		adc.battery_meas = true;
 		adc_init(true);
 	}
 }
@@ -63,7 +65,7 @@ void adc_request_battery_measurement(void)
 /* ADC conversion complete interrupt service routine */
 ISR(ADC_vect)
 {
-	uint16_t adc;
+	uint16_t raw_adc;
 	uint16_t raw_setpoint;
 	uint16_t filt_setpoint;
 	uint16_t vcc_mv;
@@ -78,15 +80,15 @@ ISR(ADC_vect)
 	sei();
 
 	/* Read the analog input */
-	adc = ADC;
+	raw_adc = ADC;
 
 	if (adc_battery_measurement_running()) {
 		/* Battery voltage measurement mode. */
 
-		if (adc_delay == 0u) {
+		if (adc.delay == 0u) {
 			/* Convert the raw ADC value to millivolts. */
-			if (adc > 0u) {
-				tmp = ((uint32_t)(ADC_MAX + 1u) * (uint32_t)ADC_VBG_MV) / (uint32_t)adc;
+			if (raw_adc > 0u) {
+				tmp = ((uint32_t)(ADC_MAX + 1u) * (uint32_t)ADC_VBG_MV) / (uint32_t)raw_adc;
 				vcc_mv = min(tmp, (uint32_t)UINT16_MAX);
 			} else
 				vcc_mv = UINT16_MAX;
@@ -111,37 +113,37 @@ ISR(ADC_vect)
 			 * Turn off battery measurement mode and
 			 * return to normal ADC operation mode
 			 * (if battery voltage is not critical). */
-			adc_battery_meas = false;
+			adc.battery_meas = false;
 			adc_init(true);
 		} else {
 			/* VRef/Vbg is not stable, yet.
 			 * Continue waiting... */
-			adc_delay--;
+			adc.delay--;
 			cli();
 		}
 	} else {
 		/* Normal operation mode. */
 
 		if (ADC_INVERT)
-			adc = ADC_MAX - adc;
+			raw_adc = ADC_MAX - raw_adc;
 
 		/* Transform the value according to the transformation curve. */
 		raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
 						 ARRAY_SIZE(adc2sp_transformation_curve),
-						 adc);
+						 raw_adc);
 
 		/* Filter the setpoint value. */
-		filt_setpoint = lp_filter_run(&adc_filter,
+		filt_setpoint = lp_filter_run(&adc.filter,
 					      ADC_FILTER_SHIFT,
 					      raw_setpoint);
 		/* If bootstrapping and the filter is still zero,
 		 * do not use the filtered value, yet.
 		 * This avoids falling back into deep sleep mode right away. */
-		if (adc_bootstrap) {
+		if (adc.bootstrap) {
 			if (filt_setpoint == 0u)
 				filt_setpoint = raw_setpoint;
 			else
-				adc_bootstrap = false;
+				adc.bootstrap = false;
 		}
 
 		/* Globally disable interrupts.
@@ -174,8 +176,8 @@ ISR(ADC_vect)
 /* Reset the ADC filter. */
 void adc_reset(void)
 {
-	lp_filter_reset(&adc_filter);
-	adc_bootstrap = true;
+	lp_filter_reset(&adc.filter);
+	adc.bootstrap = true;
 	memory_barrier();
 }
 
@@ -201,7 +203,7 @@ void adc_init(bool enable)
 				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
 			/* Discard the first few results to compensate
 			 * for Vbg settling time (1 ms). */
-			adc_delay = 10;
+			adc.delay = 10;
 		} else if (!battery_voltage_is_critical()) {
 			/* Ref = Vcc; in = ADC2/PB4; Right adjust */
 			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
