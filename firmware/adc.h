@@ -3,6 +3,7 @@
 
 #include "util.h"
 
+bool adc_battery_measurement_running(void);
 void adc_request_battery_measurement(void);
 void adc_reset(void);
 void adc_init(bool enable);

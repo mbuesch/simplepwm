@@ -44,12 +44,20 @@ static bool adc_battery_meas;
 static uint8_t adc_delay;
 
 
+/* Returns true, if a battery measurement conversion is currently running. */
+bool adc_battery_measurement_running(void)
+{
+	return adc_battery_meas && USE_BAT_MONITOR;
+}
+
 /* Request a measurement of the battery voltage.
  * Interrupts must be disabled before calling this function. */
 void adc_request_battery_measurement(void)
 {
-	adc_battery_meas = true;
-	adc_init(true);
+	if (USE_BAT_MONITOR) {
+		adc_battery_meas = true;
+		adc_init(true);
+	}
 }
 
 /* ADC conversion complete interrupt service routine */
@@ -72,7 +80,7 @@ ISR(ADC_vect)
 	/* Read the analog input */
 	adc = ADC;
 
-	if (adc_battery_meas && USE_BAT_MONITOR) {
+	if (adc_battery_measurement_running()) {
 		/* Battery voltage measurement mode. */
 
 		if (adc_delay == 0u) {
@@ -182,7 +190,7 @@ void adc_init(bool enable)
 	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
 
 	if (enable) {
-		if (adc_battery_meas) {
+		if (adc_battery_measurement_running()) {
 			/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
 			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
 				(0 << ADLAR) |
