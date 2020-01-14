@@ -248,7 +248,7 @@ static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 /* Main program entry point. */
 int __attribute__((__OS_main__)) main(void)
 {
-	bool deep;
+	bool go_deep;
 
 	ports_init();
 	power_reduction(false);
@@ -258,20 +258,25 @@ int __attribute__((__OS_main__)) main(void)
 		cli();
 
 		memory_barrier();
-		deep = (USE_DEEP_SLEEP &&
-			(deep_sleep.request ||
-			 battery_voltage_is_critical()));
-		deep_sleep.active = deep;
+		go_deep = false;
+		if (USE_DEEP_SLEEP) {
+			if (deep_sleep.request)
+				go_deep = true;
+			if (battery_voltage_is_critical() &&
+			    !adc_battery_measurement_running())
+				go_deep = true;
+		}
+		deep_sleep.active = go_deep;
 		deep_sleep.request = false;
 
-		if (deep) {
+		if (go_deep) {
 			set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 			power_reduction(true);
 		} else
 			set_sleep_mode(SLEEP_MODE_IDLE);
 
 		sleep_enable();
-		if (deep) {
+		if (go_deep) {
 			/* Disable BOD, then enter sleep mode. */
 			disable_bod_then_sleep();
 		} else {
