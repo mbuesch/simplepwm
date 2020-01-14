@@ -113,34 +113,34 @@ void request_deep_sleep(void)
 /* Enable/disable the power supply to the potentiometer. */
 static void potentiometer_enable(bool enable)
 {
-#if USE_DEEP_SLEEP
-	if (enable) {
-		/* Turn pot power supply on. */
-		/* HI = driven */
-		POTEN_PORT |= (1 << POTEN_HI_BIT);
-		POTEN_DDR |= (1 << POTEN_HI_BIT);
-		/* LO = driven */
-		POTEN_PORT &= (uint8_t)~(1 << POTEN_LO_BIT);
-		POTEN_DDR |= (1 << POTEN_LO_BIT);
-	} else {
-		/* Switch pot power supply to high impedance input. */
-		if (ADC_INVERT) {
+	if (USE_DEEP_SLEEP) {
+		if (enable) {
+			/* Turn pot power supply on. */
 			/* HI = driven */
 			POTEN_PORT |= (1 << POTEN_HI_BIT);
 			POTEN_DDR |= (1 << POTEN_HI_BIT);
-			/* LO = high impedance */
-			POTEN_DDR &= (uint8_t)~(1 << POTEN_LO_BIT);
-			POTEN_PORT &= (uint8_t)~(1 << POTEN_LO_BIT);
-		} else {
 			/* LO = driven */
 			POTEN_PORT &= (uint8_t)~(1 << POTEN_LO_BIT);
 			POTEN_DDR |= (1 << POTEN_LO_BIT);
-			/* HI = high impedance */
-			POTEN_DDR &= (uint8_t)~(1 << POTEN_HI_BIT);
-			POTEN_PORT &= (uint8_t)~(1 << POTEN_HI_BIT);
+		} else {
+			/* Switch pot power supply to high impedance input. */
+			if (ADC_INVERT) {
+				/* HI = driven */
+				POTEN_PORT |= (1 << POTEN_HI_BIT);
+				POTEN_DDR |= (1 << POTEN_HI_BIT);
+				/* LO = high impedance */
+				POTEN_DDR &= (uint8_t)~(1 << POTEN_LO_BIT);
+				POTEN_PORT &= (uint8_t)~(1 << POTEN_LO_BIT);
+			} else {
+				/* LO = driven */
+				POTEN_PORT &= (uint8_t)~(1 << POTEN_LO_BIT);
+				POTEN_DDR |= (1 << POTEN_LO_BIT);
+				/* HI = high impedance */
+				POTEN_DDR &= (uint8_t)~(1 << POTEN_HI_BIT);
+				POTEN_PORT &= (uint8_t)~(1 << POTEN_HI_BIT);
+			}
 		}
 	}
-#endif /* USE_DEEP_SLEEP */
 }
 
 /* Initialize I/O ports. */
