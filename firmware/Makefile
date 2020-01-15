@@ -76,8 +76,7 @@ INSTRUMENT_FUNC		:=
 BOOT_INSTRUMENT_FUNC	:=
 
 # Additional compiler flags
-CFLAGS			:= -Wno-conversion \
-			   -DPWM_LIM="$(PWM_LIM)" \
+CFLAGS			:= -DPWM_LIM="$(PWM_LIM)" \
 			   -DPWM_INVERT="(!!($(PWM_INVERT)))" \
 			   -DADC_INVERT="(!!($(ADC_INVERT)))"
 LDFLAGS			:=

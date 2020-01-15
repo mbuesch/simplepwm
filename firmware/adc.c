@@ -89,7 +89,7 @@ ISR(ADC_vect)
 			/* Convert the raw ADC value to millivolts. */
 			if (raw_adc > 0u) {
 				tmp = ((uint32_t)(ADC_MAX + 1u) * (uint32_t)ADC_VBG_MV) / (uint32_t)raw_adc;
-				vcc_mv = min(tmp, (uint32_t)UINT16_MAX);
+				vcc_mv = (uint16_t)min(tmp, (uint32_t)UINT16_MAX);
 			} else
 				vcc_mv = UINT16_MAX;
 

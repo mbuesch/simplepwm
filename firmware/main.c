@@ -61,8 +61,8 @@ static void set_battery_mon_interval(uint16_t seconds)
 	if (USE_BAT_MONITOR) {
 		/* Convert seconds to interval counter threshold.
 		 * WDT IRQ interval is 0.5 seconds. */
-		bat.count_threshold = min((uint32_t)seconds * (uint32_t)2u,
-					  (uint32_t)UINT16_MAX);
+		bat.count_threshold = (uint16_t)min((uint32_t)seconds * (uint32_t)2u,
+						    (uint32_t)UINT16_MAX);
 	}
 }
 
@@ -275,11 +275,13 @@ int __attribute__((__OS_main__)) main(void)
 		deep_sleep.active = go_deep;
 		deep_sleep.request = false;
 
+		#pragma GCC diagnostic ignored "-Wconversion"
 		if (go_deep) {
 			set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 			power_reduction(true);
 		} else
 			set_sleep_mode(SLEEP_MODE_IDLE);
+		#pragma GCC diagnostic pop
 
 		sleep_enable();
 		if (go_deep) {
