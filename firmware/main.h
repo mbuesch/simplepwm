@@ -15,7 +15,6 @@
 
 /* Sleep mode and battery monitoring. */
 #if SMALL_DEVICE
-# warning "Deep sleep and battery monitoring disabled on small microcontroller (t13)."
 # define USE_DEEP_SLEEP		0
 # define USE_BAT_MONITOR	0
 #else

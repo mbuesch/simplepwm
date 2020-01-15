@@ -54,6 +54,11 @@ static struct {
 #define BAT_INT_CRIT		(60 * 10) /* During low battery */
 
 
+#if SMALL_DEVICE
+# warning "Deep sleep and battery monitoring disabled on small microcontroller (t13)."
+#endif
+
+
 /* Set the interval that the battery voltage should be measured in.
  * Interrupts shall be disabled before calling this function. */
 static void set_battery_mon_interval(uint16_t seconds)
