@@ -45,6 +45,8 @@ static struct {
 
 /* Battery voltages below this threshold are critical: */
 #define BAT_CRITICAL_MIN_MV	3200u /* millivolts */
+/* Hysteresis for leaving critical-min state. */
+#define BAT_CRITICAL_HYST_MV	300u  /* millivolts */
 /* Battery voltages above this threshold are not plausible: */
 #define BAT_PLAUS_MAX_MV	6500u /* millivolts */
 
@@ -81,12 +83,14 @@ bool battery_voltage_is_critical(void)
 void evaluate_battery_voltage(uint16_t vcc_mv)
 {
 	if (USE_BAT_MONITOR) {
+		if (vcc_mv >= (BAT_CRITICAL_MIN_MV + BAT_CRITICAL_HYST_MV))
+			bat.voltage_critical = false;
+
+		if (vcc_mv < BAT_CRITICAL_MIN_MV)
+			bat.voltage_critical = true;
+
 		if (vcc_mv > BAT_PLAUS_MAX_MV)
 			bat.voltage_critical = true;
-		else if (vcc_mv < BAT_CRITICAL_MIN_MV)
-			bat.voltage_critical = true;
-		else
-			bat.voltage_critical = false;
 	}
 }
 
