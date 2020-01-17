@@ -181,7 +181,7 @@ ISR(ADC_vect)
 		 * This avoids falling back into deep sleep mode right away. */
 		if (adc.bootstrap && USE_ADC_BOOTSTRAP) {
 			adc.bootstrap--;
-			if (filt_setpoint == raw_setpoint)
+			if (filt_setpoint >= raw_setpoint)
 				adc.bootstrap = 0;
 			else
 				filt_setpoint = raw_setpoint;
@@ -220,7 +220,7 @@ void adc_init(bool enable)
 {
 	lp_filter_reset(&adc.filter);
 	if (USE_ADC_BOOTSTRAP)
-		adc.bootstrap = 20;
+		adc.bootstrap = 50;
 	memory_barrier();
 
 	adc_configure(enable);
