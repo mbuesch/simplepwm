@@ -37,9 +37,15 @@
 
 #define ADC_FILTER_SHIFT	9
 
+#define ADC_BOOT_DELAY		50 /* Number of ADC measurements */
+#define ADC_SHUTDOWN_DELAY	50 /* Number of ADC measurements */
+
+#define ADC_BOOT_SP_LIMIT	512 /* setpoint */
+
 
 static struct {
 	uint8_t bootstrap;
+	uint8_t shutdown_delay;
 	struct lp_filter filter;
 	bool battery_meas;
 	uint8_t delay;
@@ -177,13 +183,16 @@ ISR(ADC_vect)
 		filt_setpoint = lp_filter_run(&adc.filter,
 					      ADC_FILTER_SHIFT,
 					      raw_setpoint);
+
 		/* If bootstrapping, do not use the filtered value, yet.
 		 * This avoids falling back into deep sleep mode right away. */
 		if (adc.bootstrap && USE_ADC_BOOTSTRAP) {
 			adc.bootstrap--;
-			if (filt_setpoint >= raw_setpoint)
+
+			if (filt_setpoint >= raw_setpoint ||
+			    filt_setpoint > ADC_BOOT_SP_LIMIT) {
 				adc.bootstrap = 0;
-			else
+			} else
 				filt_setpoint = raw_setpoint;
 		}
 
@@ -197,9 +206,14 @@ ISR(ADC_vect)
 		if (USE_DEEP_SLEEP) {
 			/* If the PWM is disabled, request deep sleep to save power. */
 			if (filt_setpoint == 0u) {
-				/* Request a microcontroller deep sleep. */
-				request_deep_sleep();
-			}
+				if (adc.shutdown_delay) {
+					adc.shutdown_delay--;
+				} else {
+					/* Request a microcontroller deep sleep. */
+					request_deep_sleep();
+				}
+			} else
+				adc.shutdown_delay = ADC_SHUTDOWN_DELAY;
 		}
 	}
 
@@ -220,7 +234,9 @@ void adc_init(bool enable)
 {
 	lp_filter_reset(&adc.filter);
 	if (USE_ADC_BOOTSTRAP)
-		adc.bootstrap = 50;
+		adc.bootstrap = ADC_BOOT_DELAY;
+	if (USE_DEEP_SLEEP)
+		adc.shutdown_delay = ADC_SHUTDOWN_DELAY;
 	memory_barrier();
 
 	adc_configure(enable);
