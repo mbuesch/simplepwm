@@ -118,7 +118,7 @@ ISR(ADC_vect)
 	 * globally enable interrupts.
 	 * This allows TIM0_OVF_vect to interrupt us. */
 	ADCSRA &= (uint8_t)~(1u << ADIE);
-	sei();
+	irq_enable();
 
 	/* Read the analog input */
 	raw_adc = ADC;
@@ -138,7 +138,7 @@ ISR(ADC_vect)
 			 * - battery voltage evaluation
 			 * - PWM shut down
 			 * - ADC re-init */
-			cli();
+			irq_disable();
 
 			/* Report the measured battery voltage to the
 			 * battery voltage logic. */
@@ -160,7 +160,7 @@ ISR(ADC_vect)
 			/* VRef/Vbg is not stable, yet.
 			 * Continue waiting... */
 			adc.delay--;
-			cli();
+			irq_disable();
 		}
 	} else {
 		/* Normal operation mode. */
@@ -189,7 +189,7 @@ ISR(ADC_vect)
 
 		/* Globally disable interrupts.
 		 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
-		cli();
+		irq_disable();
 
 		/* Change the output signal (PWM). */
 		output_setpoint(filt_setpoint);

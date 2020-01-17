@@ -260,7 +260,7 @@ static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 }
 
 /* Main program entry point. */
-int __attribute__((__OS_main__)) main(void)
+int _mainfunc main(void)
 {
 	bool go_deep;
 
@@ -269,7 +269,7 @@ int __attribute__((__OS_main__)) main(void)
 	set_battery_mon_interval(0);
 
 	while (1) {
-		cli();
+		irq_disable();
 
 		memory_barrier();
 		go_deep = false;
@@ -297,7 +297,7 @@ int __attribute__((__OS_main__)) main(void)
 			disable_bod_then_sleep();
 		} else {
 			/* Enter sleep mode. */
-			sei();
+			irq_enable();
 			sleep_cpu();
 		}
 		sleep_disable();

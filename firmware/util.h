@@ -38,5 +38,50 @@
 /* Memory barrier. */
 #define memory_barrier()	__asm__ __volatile__("" : : : "memory")
 
+/* Do-not-inline function attribute. */
+#define noinline		__attribute__((__noinline__))
+
+/* Always-inline function attribute. */
+#define alwaysinline		inline __attribute__((__always_inline__))
+
+/* Code flow attributes */
+#define noreturn		__attribute__((__noreturn__))
+#define _mainfunc		__attribute__((__OS_main__))
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 5
+# define unreachable()		__builtin_unreachable()
+#else
+# define unreachable()		while (1)
+#endif
+
+
+/* Disable interrupts globally. */
+static alwaysinline void irq_disable(void)
+{
+	cli();
+	memory_barrier();
+}
+
+/* Enable interrupts globally. */
+static alwaysinline void irq_enable(void)
+{
+	memory_barrier();
+	sei();
+}
+
+/* Save flags and disable interrupts globally. */
+static alwaysinline uint8_t irq_disable_save(void)
+{
+	uint8_t sreg = SREG;
+	irq_disable();
+	return sreg;
+}
+
+/* Restore interrupt flags. */
+static alwaysinline void irq_restore(uint8_t sreg_flags)
+{
+	memory_barrier();
+	SREG = sreg_flags;
+}
+
 
 #endif /* UTIL_H_ */
