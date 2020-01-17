@@ -114,7 +114,8 @@ ISR(TIM0_OVF_vect)
 			ASM_PWM_OUT_LOW
 		: : ASM_INPUTS
 		: );
-#if !SMALL_DEVICE
+//#if !SMALL_DEVICE
+#if 1
 	} else if (delay_count == 1) {
 		/* 1 clock delay */
 
