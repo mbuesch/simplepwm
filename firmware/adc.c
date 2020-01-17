@@ -39,7 +39,7 @@
 
 
 static struct {
-	bool bootstrap;
+	uint8_t bootstrap;
 	struct lp_filter filter;
 	bool battery_meas;
 	uint8_t delay;
@@ -136,14 +136,14 @@ ISR(ADC_vect)
 		filt_setpoint = lp_filter_run(&adc.filter,
 					      ADC_FILTER_SHIFT,
 					      raw_setpoint);
-		/* If bootstrapping and the filter is still zero,
-		 * do not use the filtered value, yet.
+		/* If bootstrapping, do not use the filtered value, yet.
 		 * This avoids falling back into deep sleep mode right away. */
-		if (adc.bootstrap) {
-			if (filt_setpoint == 0u)
-				filt_setpoint = raw_setpoint;
+		if (adc.bootstrap && USE_ADC_BOOTSTRAP) {
+			adc.bootstrap--;
+			if (filt_setpoint == raw_setpoint)
+				adc.bootstrap = 0;
 			else
-				adc.bootstrap = false;
+				filt_setpoint = raw_setpoint;
 		}
 
 		/* Globally disable interrupts.
@@ -177,7 +177,8 @@ ISR(ADC_vect)
 void adc_reset(void)
 {
 	lp_filter_reset(&adc.filter);
-	adc.bootstrap = true;
+	if (USE_ADC_BOOTSTRAP)
+		adc.bootstrap = 20;
 	memory_barrier();
 }
 
