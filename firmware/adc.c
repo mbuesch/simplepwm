@@ -46,6 +46,47 @@ static struct {
 } adc;
 
 
+/* Configure the ADC hardware.
+ * Interrupts must be disabled before calling this function. */
+static void adc_configure(bool enable)
+{
+	/* Disable ADC unit. */
+	ADCSRA = 0;
+	/* Disable ADC2 digital input */
+	DIDR0 = (1 << ADC2D);
+	/* Trigger source = free running */
+	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
+
+	if (enable) {
+		if (adc_battery_measurement_running()) {
+			/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
+			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
+				(0 << ADLAR) |
+				(1 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
+			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
+			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
+				 (1 << ADIF) | (1 << ADIE) |
+				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
+			/* Discard the first few results to compensate
+			 * for Vbg settling time (1 ms). */
+			adc.delay = 10;
+		} else if (!battery_voltage_is_critical()) {
+			/* Ref = Vcc; in = ADC2/PB4; Right adjust */
+			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
+				(0 << ADLAR) |
+				(0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0);
+			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
+			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
+				 (1 << ADIF) | (1 << ADIE) |
+				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
+		} else {
+			/* Battery voltage is critical and no battery measurement
+			 * has been requested.
+			 * Keep the ADC shut down. */
+		}
+	}
+}
+
 /* Returns true, if a battery measurement conversion is currently running. */
 bool adc_battery_measurement_running(void)
 {
@@ -58,7 +99,7 @@ void adc_request_battery_measurement(void)
 {
 	if (USE_BAT_MONITOR) {
 		adc.battery_meas = true;
-		adc_init(true);
+		adc_configure(true);
 	}
 }
 
@@ -114,7 +155,7 @@ ISR(ADC_vect)
 			 * return to normal ADC operation mode
 			 * (if battery voltage is not critical). */
 			adc.battery_meas = false;
-			adc_init(true);
+			adc_configure(true);
 		} else {
 			/* VRef/Vbg is not stable, yet.
 			 * Continue waiting... */
@@ -173,51 +214,14 @@ ISR(ADC_vect)
 	memory_barrier();
 }
 
-/* Reset the ADC filter. */
-void adc_reset(void)
+/* Initialize the input ADC measurement.
+ * Interrupts must be disabled before calling this function. */
+void adc_init(bool enable)
 {
 	lp_filter_reset(&adc.filter);
 	if (USE_ADC_BOOTSTRAP)
 		adc.bootstrap = 20;
 	memory_barrier();
-}
 
-/* Initialize the input ADC measurement. */
-void adc_init(bool enable)
-{
-	/* Disable ADC unit. */
-	ADCSRA = 0;
-	/* Disable ADC2 digital input */
-	DIDR0 = (1 << ADC2D);
-	/* Trigger source = free running */
-	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
-
-	if (enable) {
-		if (adc_battery_measurement_running()) {
-			/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
-			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
-				(0 << ADLAR) |
-				(1 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
-			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
-			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
-				 (1 << ADIF) | (1 << ADIE) |
-				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
-			/* Discard the first few results to compensate
-			 * for Vbg settling time (1 ms). */
-			adc.delay = 10;
-		} else if (!battery_voltage_is_critical()) {
-			/* Ref = Vcc; in = ADC2/PB4; Right adjust */
-			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
-				(0 << ADLAR) |
-				(0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0);
-			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
-			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
-				 (1 << ADIF) | (1 << ADIE) |
-				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
-		} else {
-			/* Battery voltage is critical and no battery measurement
-			 * has been requested.
-			 * Keep the ADC shut down. */
-		}
-	}
+	adc_configure(enable);
 }
