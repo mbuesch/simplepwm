@@ -49,6 +49,7 @@ static struct {
 	struct lp_filter filter;
 	bool battery_meas;
 	uint8_t delay;
+	uint8_t prev_pwm_count;
 } adc;
 
 
@@ -116,8 +117,17 @@ ISR(ADC_vect)
 	uint16_t raw_setpoint;
 	uint16_t filt_setpoint;
 	uint16_t vcc_mv;
+	uint8_t pwm_count;
+	bool pwm_collision;
 
 	memory_barrier();
+
+	/* Check if we had a PWM interrupt during our ADC measurement.
+	 * This only checks for collisions with the low frequency IRQ mode PWM.
+	 * Do this check with interrupts still disabled. */
+	pwm_count = pwm_get_irq_count();
+	pwm_collision = (pwm_count != adc.prev_pwm_count);
+	adc.prev_pwm_count = pwm_count;
 
 	/* Disable the ADC interrupt and
 	 * globally enable interrupts.
@@ -167,8 +177,10 @@ ISR(ADC_vect)
 			adc.delay--;
 			irq_disable();
 		}
-	} else {
-		/* Normal operation mode. */
+	} else if (!pwm_collision) {
+		/* Normal operation mode.
+		 * Discard this measurement, if an IRQ controlled
+		 * PWM output actuation happened during the measurement. */
 
 		if (ADC_INVERT)
 			raw_adc = ADC_MAX - raw_adc;
@@ -238,6 +250,7 @@ void adc_init(bool enable)
 		adc.bootstrap = ADC_BOOT_DELAY;
 	if (USE_DEEP_SLEEP)
 		adc.shutdown_delay = ADC_SHUTDOWN_DELAY;
+	adc.prev_pwm_count = pwm_get_irq_count();
 	memory_barrier();
 
 	adc_configure(enable);
