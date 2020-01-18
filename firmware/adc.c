@@ -116,7 +116,6 @@ ISR(ADC_vect)
 	uint16_t raw_setpoint;
 	uint16_t filt_setpoint;
 	uint16_t vcc_mv;
-	uint32_t tmp;
 
 	memory_barrier();
 
@@ -135,8 +134,8 @@ ISR(ADC_vect)
 		if (adc.delay == 0u) {
 			/* Convert the raw ADC value to millivolts. */
 			if (raw_adc > 0u) {
-				tmp = ((uint32_t)(ADC_MAX + 1u) * (uint32_t)ADC_VBG_MV) / (uint32_t)raw_adc;
-				vcc_mv = (uint16_t)min(tmp, (uint32_t)UINT16_MAX);
+				vcc_mv = lim_u16((((uint32_t)ADC_MAX + 1u) * (uint32_t)ADC_VBG_MV) /
+						 (uint32_t)raw_adc);
 			} else
 				vcc_mv = UINT16_MAX;
 

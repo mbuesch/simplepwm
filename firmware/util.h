@@ -24,6 +24,9 @@
 #define clamp(value, min_val, max_val)		\
 	max(min(value, max_val), min_val)
 
+/* Limit an unsigned integer to uint16_t range. */
+#define lim_u16(v)	((uint16_t)min((v), (__typeof__(v))UINT16_MAX))
+
 /* Return the absolute value of 'val' */
 #undef abs
 #define abs(val)	({			\

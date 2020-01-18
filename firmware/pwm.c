@@ -103,7 +103,7 @@ ISR(TIM0_OVF_vect)
 	memory_barrier();
 	tmp = pwm.active_setpoint;
 	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
-	delay_count = (uint16_t)min(tmp, UINT16_MAX);
+	delay_count = lim_u16(tmp);
 
 	/* Switch the PWM output high, then delay, then switch the output low.
 	 * (It it Ok to delay for a short time in this interrupt). */

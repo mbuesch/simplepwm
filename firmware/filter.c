@@ -33,6 +33,5 @@ uint16_t lp_filter_run(struct lp_filter *lp,
 	buf = (buf - (buf >> shift)) + in;
 	lp->filter_buf = buf;
 
-	return (uint16_t)min(buf >> shift,
-			     (uint32_t)UINT16_MAX);
+	return lim_u16(buf >> shift);
 }

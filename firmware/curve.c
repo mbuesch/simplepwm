@@ -67,7 +67,7 @@ uint16_t curve_interpolate(const struct curve_point __flash *curve,
 		tmp *= ry - ly;
 		tmp /= rx - lx;
 		tmp += ly;
-		y = (uint16_t)min(tmp, UINT16_MAX);
+		y = lim_u16(tmp);
 	}
 
 	return y;
