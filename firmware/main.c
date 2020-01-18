@@ -263,9 +263,10 @@ int _mainfunc main(void)
 			if (battery_voltage_is_critical() &&
 			    !adc_battery_measurement_running())
 				go_deep = true;
+
+			system.deep_sleep_active = go_deep;
+			system.deep_sleep_request = false;
 		}
-		system.deep_sleep_active = go_deep;
-		system.deep_sleep_request = false;
 
 		#pragma GCC diagnostic ignored "-Wconversion"
 		if (go_deep) {
