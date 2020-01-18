@@ -23,6 +23,7 @@
 #include "util.h"
 #include "pwm.h"
 #include "adc.h"
+#include "watchdog.h"
 
 
 /* Potentiometer enable pin. */
@@ -33,15 +34,17 @@
 
 
 static struct {
-	bool request;
-	bool active;
-} deep_sleep;
+	bool standby;
+	bool deep_sleep_request;
+	bool deep_sleep_active;
+} system;
 
 static struct {
-	uint16_t count;
-	uint16_t count_threshold;
+	uint16_t interval_ms;
+	uint16_t elapsed_ms;
 	bool voltage_critical;
 } bat;
+
 
 /* Battery voltages below this threshold are critical: */
 #define BAT_CRITICAL_MIN_MV	3200u /* millivolts */
@@ -65,12 +68,8 @@ static struct {
  * Interrupts shall be disabled before calling this function. */
 static void set_battery_mon_interval(uint16_t seconds)
 {
-	if (USE_BAT_MONITOR) {
-		/* Convert seconds to interval counter threshold.
-		 * WDT IRQ interval is 0.5 seconds. */
-		bat.count_threshold = (uint16_t)min((uint32_t)seconds * (uint32_t)2u,
-						    (uint32_t)UINT16_MAX);
-	}
+	if (USE_BAT_MONITOR)
+		bat.interval_ms = lim_u16((uint32_t)seconds * 1000u);
 }
 
 /* Returns true, if the battery voltage reached a critical level. */
@@ -112,11 +111,15 @@ void output_setpoint(uint16_t setpoint)
 	pwm_set(setpoint);
 }
 
-/* Enter deep sleep in the next main loop iteration. */
-void request_deep_sleep(void)
+/* If standby, enter deep sleep in the next main loop iteration.
+ * Interrupts shall be disabled before calling this function. */
+void system_set_standby(bool standby)
 {
-	if (USE_DEEP_SLEEP)
-		deep_sleep.request = true;
+	if (USE_DEEP_SLEEP) {
+		watchdog_set_standby(standby);
+		system.standby = standby;
+		system.deep_sleep_request = standby;
+	}
 }
 
 /* Enable/disable the power supply to the potentiometer. */
@@ -194,6 +197,27 @@ static void power_reduction(bool full)
 	}
 }
 
+/* A watchdog interrupt just occurred. */
+void system_handle_watchdog_interrupt(void)
+{
+	if (USE_DEEP_SLEEP) {
+		if (system.deep_sleep_active) {
+			/* We just woke up from deep sleep.
+			 * Re-enable all used peripherals. */
+			system.deep_sleep_active = false;
+			power_reduction(false);
+		}
+
+		/* Check if we need to measure the battery voltage. */
+		bat.elapsed_ms = lim_u16((uint32_t)bat.elapsed_ms + watchdog_interval_ms());
+		if (bat.elapsed_ms >= bat.interval_ms) {
+			bat.elapsed_ms = 0;
+			/* Must be called with interrupts disabled. */
+			adc_request_battery_measurement();
+		}
+	}
+}
+
 /* Disable BOD, then enter sleep mode. */
 static void disable_bod_then_sleep(void)
 {
@@ -221,44 +245,6 @@ static void disable_bod_then_sleep(void)
 #endif /* USE_DEEP_SLEEP */
 }
 
-/* Watchdog timer interrupt service routine. */
-#if USE_DEEP_SLEEP
-ISR(WDT_vect)
-{
-	memory_barrier();
-
-	if (deep_sleep.active) {
-		/* We just woke up from deep sleep.
-		 * Re-enable all used peripherals. */
-		deep_sleep.active = false;
-		power_reduction(false);
-	}
-
-	/* Check if we need to measure the battery voltage. */
-	if (++bat.count >= bat.count_threshold) {
-		bat.count = 0;
-		/* Must be called with interrupts disabled. */
-		adc_request_battery_measurement();
-	}
-
-	memory_barrier();
-	WDTCR |= (1 << WDIE);
-	memory_barrier();
-}
-#endif /* USE_DEEP_SLEEP */
-
-/* Early watchdog timer initialization. */
-static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
-{
-	/* Clear WDRF (and all other reset info bits). */
-	MCUSR = 0;
-	/* Enable the watchdog. */
-	wdt_enable(WDTO_500MS);
-	/* Enable watchdog interrupt for wake up from deep sleep. */
-	if (USE_DEEP_SLEEP)
-		WDTCR |= (1 << WDIE);
-}
-
 /* Main program entry point. */
 int _mainfunc main(void)
 {
@@ -274,14 +260,14 @@ int _mainfunc main(void)
 		memory_barrier();
 		go_deep = false;
 		if (USE_DEEP_SLEEP) {
-			if (deep_sleep.request)
+			if (system.deep_sleep_request)
 				go_deep = true;
 			if (battery_voltage_is_critical() &&
 			    !adc_battery_measurement_running())
 				go_deep = true;
 		}
-		deep_sleep.active = go_deep;
-		deep_sleep.request = false;
+		system.deep_sleep_active = go_deep;
+		system.deep_sleep_request = false;
 
 		#pragma GCC diagnostic ignored "-Wconversion"
 		if (go_deep) {

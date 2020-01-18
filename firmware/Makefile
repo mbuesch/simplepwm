@@ -23,7 +23,7 @@ ADC_INVERT		:= 1
 NAME			:= simplepwm
 
 # Project source files
-SRCS			:= main.c curve.c pwm.c adc.c filter.c
+SRCS			:= main.c curve.c pwm.c adc.c filter.c watchdog.c
 GEN_SRCS		:=
 
 # Bootloader source files

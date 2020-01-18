@@ -209,10 +209,12 @@ ISR(ADC_vect)
 					adc.shutdown_delay--;
 				} else {
 					/* Request a microcontroller deep sleep. */
-					request_deep_sleep();
+					system_set_standby(true);
 				}
-			} else
+			} else {
 				adc.shutdown_delay = ADC_SHUTDOWN_DELAY;
+				system_set_standby(false);
+			}
 		}
 	}
 
