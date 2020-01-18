@@ -34,7 +34,6 @@
 
 
 static struct {
-	bool standby;
 	bool deep_sleep_request;
 	bool deep_sleep_active;
 } system;
@@ -117,7 +116,6 @@ void system_set_standby(bool standby)
 {
 	if (USE_DEEP_SLEEP) {
 		watchdog_set_standby(standby);
-		system.standby = standby;
 		system.deep_sleep_request = standby;
 	}
 }
