@@ -51,6 +51,22 @@ static const __flash struct {
 #define WATCHDOG_TRANS_DELAY	20 /* Watchdog cycles */
 
 
+/* Write to the WDT hardware register. */
+static void wdt_setup(uint8_t wdto, bool wde, bool wdie)
+{
+	__asm__ __volatile__(
+		"wdr \n"
+		"out %[WDTCR_], %[FIRST_] \n"
+		"out %[WDTCR_], %[SECND_] \n"
+		: /* no out */
+		: [WDTCR_] "I" (_SFR_IO_ADDR(WDTCR)),
+		  [FIRST_] "r" ((uint8_t)((1u << WDCE) | (1u << WDE))),
+		  [SECND_] "r" ((uint8_t)((wde ? (1u << WDE) : 0u) |
+					  (wdie ? (1u << WDIE) : 0u) |
+					  (wdto & 0x07u)))
+	);
+}
+
 static uint8_t watchdog_get_state(void)
 {
 	return min(watchdog.state, WATCHDOG_NR_STATES - 1u);
@@ -74,7 +90,7 @@ static void watchdog_reconfigure(void)
 		wdto = watchdog_timeouts[watchdog_get_state()].wdto;
 		if (wdto != watchdog.active_wdto) {
 			watchdog.active_wdto = wdto;
-			wdt_enable(wdto);
+			wdt_setup(wdto, true, USE_DEEP_SLEEP);
 		}
 	}
 }
@@ -130,11 +146,10 @@ static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 
 	/* Enable the watchdog. */
 	watchdog.active_wdto = watchdog_timeouts[WATCHDOG_INIT_STATE].wdto;
-	wdt_enable(watchdog.active_wdto);
+	wdt_setup(watchdog.active_wdto, true, USE_DEEP_SLEEP);
 
 	/* Enable watchdog interrupt for wake up from deep sleep. */
 	if (USE_DEEP_SLEEP) {
-		WDTCR |= (1 << WDIE);
 		watchdog.state = WATCHDOG_INIT_STATE;
 		watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
 	}
