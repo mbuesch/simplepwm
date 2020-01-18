@@ -27,70 +27,54 @@
 static struct {
 	uint8_t state;
 	uint8_t transition_delay;
-	uint8_t active_timeout;
+	uint8_t active_wdto;
 	bool standby;
 } watchdog;
 
-static const uint8_t __flash watchdog_state2timeout[] = {
-	WDTO_120MS,
-	WDTO_250MS,
-	WDTO_500MS,
-	WDTO_1S,
-	WDTO_2S,
+static const __flash struct {
+	uint8_t wdto;
+	uint16_t ms;
+} watchdog_timeouts[] = {
+	{ .wdto = WDTO_60MS,	.ms = 60,	},
+	{ .wdto = WDTO_120MS,	.ms = 120,	},
+	{ .wdto = WDTO_250MS,	.ms = 250,	},
+	{ .wdto = WDTO_500MS,	.ms = 500,	},
+	{ .wdto = WDTO_1S,	.ms = 1000,	},
+	{ .wdto = WDTO_2S,	.ms = 2000,	},
 };
-#define WATCHDOG_NR_STATES	ARRAY_SIZE(watchdog_state2timeout)
+#define WATCHDOG_NR_STATES	ARRAY_SIZE(watchdog_timeouts)
+
+/* Initial state. */
+#define WATCHDOG_INIT_STATE	1
 
 /* Watchdog state transition delay */
-#define WATCHDOG_TRANS_DELAY	10 /* Watchdog cycles */
+#define WATCHDOG_TRANS_DELAY	20 /* Watchdog cycles */
 
+
+static uint8_t watchdog_get_state(void)
+{
+	return min(watchdog.state, WATCHDOG_NR_STATES - 1u);
+}
 
 /* Get the currently active watchdog interrupt trigger interval, in milliseconds. */
 uint16_t watchdog_interval_ms(void)
 {
-	uint16_t interval_ms;
-
-	if (USE_DEEP_SLEEP) {
-		switch (watchdog.active_timeout) {
-		case WDTO_120MS:
-			interval_ms = 120;
-			break;
-		case WDTO_250MS:
-			interval_ms = 250;
-			break;
-		case WDTO_500MS:
-			interval_ms = 500;
-			break;
-		case WDTO_1S:
-			interval_ms = 1000;
-			break;
-		default:
-		case WDTO_2S:
-			interval_ms = 2000;
-			break;
-		}
-	} else
-		interval_ms = 0;
-
-	return interval_ms;
+	if (USE_DEEP_SLEEP)
+		return watchdog_timeouts[watchdog_get_state()].ms;
+	return 0;
 }
 
 /* Reconfigure the watchdog interval.
  * Interrupts shall be disabled before calling this function. */
 static void watchdog_reconfigure(void)
 {
-	uint8_t state;
-	uint8_t timeout;
+	uint8_t wdto;
 
 	if (USE_DEEP_SLEEP) {
-		state = watchdog.state;
-		if (state >= WATCHDOG_NR_STATES)
-			state = 0;
-
-		timeout = watchdog_state2timeout[state];
-
-		if (timeout != watchdog.active_timeout) {
-			watchdog.active_timeout = timeout;
-			wdt_enable(timeout);
+		wdto = watchdog_timeouts[watchdog_get_state()].wdto;
+		if (wdto != watchdog.active_wdto) {
+			watchdog.active_wdto = wdto;
+			wdt_enable(wdto);
 		}
 	}
 }
@@ -145,13 +129,13 @@ static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 	MCUSR = 0;
 
 	/* Enable the watchdog. */
-	watchdog.active_timeout = WDTO_120MS;
-	wdt_enable(watchdog.active_timeout);
+	watchdog.active_wdto = watchdog_timeouts[WATCHDOG_INIT_STATE].wdto;
+	wdt_enable(watchdog.active_wdto);
 
 	/* Enable watchdog interrupt for wake up from deep sleep. */
 	if (USE_DEEP_SLEEP) {
 		WDTCR |= (1 << WDIE);
-		watchdog.state = 0;
+		watchdog.state = WATCHDOG_INIT_STATE;
 		watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
 	}
 }
