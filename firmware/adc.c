@@ -37,14 +37,12 @@
 
 #define ADC_FILTER_SHIFT	9
 
-#define ADC_BOOT_DELAY		50 /* Number of ADC measurements */
-#define ADC_SHUTDOWN_DELAY	50 /* Number of ADC measurements */
+#define ADC_SHUTDOWN_DELAY	255 /* Number of ADC measurements */
 
 #define ADC_BOOT_SP_LIMIT	512 /* setpoint */
 
 
 static struct {
-	uint8_t bootstrap;
 	uint8_t shutdown_delay;
 	struct lp_filter filter;
 	bool battery_meas;
@@ -195,18 +193,6 @@ ISR(ADC_vect)
 					      ADC_FILTER_SHIFT,
 					      raw_setpoint);
 
-		/* If bootstrapping, do not use the filtered value, yet.
-		 * This avoids falling back into deep sleep mode right away. */
-		if (adc.bootstrap && USE_ADC_BOOTSTRAP) {
-			adc.bootstrap--;
-
-			if (filt_setpoint >= raw_setpoint ||
-			    filt_setpoint > ADC_BOOT_SP_LIMIT) {
-				adc.bootstrap = 0;
-			} else
-				filt_setpoint = raw_setpoint;
-		}
-
 		/* Globally disable interrupts.
 		 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
 		irq_disable();
@@ -246,8 +232,6 @@ ISR(ADC_vect)
 void adc_init(bool enable)
 {
 	lp_filter_reset(&adc.filter);
-	if (USE_ADC_BOOTSTRAP)
-		adc.bootstrap = ADC_BOOT_DELAY;
 	if (USE_DEEP_SLEEP)
 		adc.shutdown_delay = ADC_SHUTDOWN_DELAY;
 	adc.prev_pwm_count = pwm_get_irq_count();

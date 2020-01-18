@@ -17,11 +17,9 @@
 #if SMALL_DEVICE
 # define USE_DEEP_SLEEP		0
 # define USE_BAT_MONITOR	0
-# define USE_ADC_BOOTSTRAP	0
 #else
 # define USE_DEEP_SLEEP		1
 # define USE_BAT_MONITOR	1
-# define USE_ADC_BOOTSTRAP	1
 #endif
 
 
