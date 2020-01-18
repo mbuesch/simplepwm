@@ -33,7 +33,8 @@
 #define PWM_POSLIM		((uint8_t)((PWM_MAX * PWM_LIM) / 100u))
 
 /* High resolution setpoint threshold */
-#define PWM_HIGHRES_SP_THRES	2000u
+#define PWM_HIGHRES_SP_THRES	0x9FFu
+#define PWM_HIGHRES_SP_HYST	0x200u
 
 /* PWM timer modes for pwm_set() */
 #define PWM_UNKNOWN_MODE	0u
@@ -202,19 +203,25 @@ void pwm_set(uint16_t setpoint)
 		pwm.active_mode = PWM_UNKNOWN_MODE;
 
 	} else {
-		/* Determine the mode */
-		//TODO hysteresis
-		if (setpoint > 0u &&
-		    setpoint <= PWM_HIGHRES_SP_THRES) {
-			/* Small PWM duty cycles are handled with a much
-			 * much higher resolution, but with much lower frequency
-			 * in the PWM timer interrupt. */
-			mode = PWM_IRQ_MODE;
-		} else {
-			/* Normal PWM duty cycle.
-			 * Use high frequency low resolution PWM.
-			 * Disable interrupt mode. */
+		/* Determine the mode.
+		 *
+		 * HW_MODE:
+		 * Normal PWM duty cycle.
+		 * Use high frequency low resolution PWM.
+		 * Disable interrupt mode.
+		 *
+		 * IRQ_MODE:
+		 * Small PWM duty cycles are handled with a much
+		 * much higher resolution, but with much lower frequency
+		 * in the PWM timer interrupt.
+		 */
+		mode = pwm.active_mode;
+		if ((setpoint > (PWM_HIGHRES_SP_THRES + PWM_HIGHRES_SP_HYST)) ||
+		    (setpoint == 0u)) {
 			mode = PWM_HW_MODE;
+		} else if ((setpoint <= (PWM_HIGHRES_SP_THRES - PWM_HIGHRES_SP_HYST)) ||
+			   (mode == PWM_UNKNOWN_MODE)) {
+			mode = PWM_IRQ_MODE;
 		}
 
 		/* Calculate PWM duty cycle value from the setpoint value */
