@@ -44,6 +44,7 @@
 static struct {
 	uint8_t active_mode;
 	uint16_t active_setpoint;
+	uint8_t irq_count;
 } pwm;
 
 
@@ -59,6 +60,19 @@ static struct {
 	[_OUT_PORT]	"I" (_SFR_IO_ADDR(PORTB)),	\
 	[_OUT_BIT]	"M" (PB0)
 
+
+
+/* Get the interrupt count. */
+uint8_t pwm_get_irq_count(void)
+{
+	uint8_t count;
+
+	memory_barrier();
+	count = pwm.irq_count;
+	memory_barrier();
+
+	return count;
+}
 
 /* Set the PWM output port state. */
 static void port_out_set(bool high)
@@ -164,6 +178,8 @@ ISR(TIM0_OVF_vect)
 		: );
 	}
 
+	pwm.irq_count++;
+
 	/* We don't want to re-trigger right now,
 	 * just in case the delay took long.
 	 * Clear the interrupt flag. */
@@ -187,6 +203,7 @@ void pwm_set(uint16_t setpoint)
 
 	} else {
 		/* Determine the mode */
+		//TODO hysteresis
 		if (setpoint > 0u &&
 		    setpoint <= PWM_HIGHRES_SP_THRES) {
 			/* Small PWM duty cycles are handled with a much
