@@ -48,7 +48,7 @@ static const __flash struct {
 #define WATCHDOG_INIT_STATE	1
 
 /* Watchdog state transition delay */
-#define WATCHDOG_TRANS_DELAY	20 /* Watchdog cycles */
+#define WATCHDOG_TRANS_DELAY	100 /* Watchdog cycles */
 
 
 /* Write to the WDT hardware register. */
