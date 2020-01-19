@@ -207,7 +207,8 @@ ISR(ADC_vect)
 		wdt_reset();
 
 	/* Re-enable the ADC interrupt. */
-	ADCSRA |= (1u << ADIF) | (1u << ADIE);
+	ADCSRA |= (1u << ADIE);
+	ADCSRA |= (1u << ADIF);
 
 	memory_barrier();
 }
