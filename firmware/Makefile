@@ -11,7 +11,7 @@ PWM_LIM			:= 100
 PWM_INVERT		:= 0
 
 # Invert the ADC input signal?
-ADC_INVERT		:= 1
+ADC_INVERT		:= 0
 
 
 
