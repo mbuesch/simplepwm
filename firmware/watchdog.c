@@ -100,8 +100,8 @@ static void watchdog_reconfigure(void)
 void watchdog_set_standby(bool standby)
 {
 	if (USE_DEEP_SLEEP) {
-		if (watchdog.standby && !standby) {
-			/* Leaving standby mode.
+		if (!standby) {
+			/* Not in standby mode.
 			 * Revert back to fast watchdog interval. */
 			watchdog.state = 0;
 			watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
