@@ -37,13 +37,8 @@
 
 #define ADC_FILTER_SHIFT	9
 
-#define ADC_SHUTDOWN_DELAY	255 /* Number of ADC measurements */
-
-#define ADC_BOOT_SP_LIMIT	512 /* setpoint */
-
 
 static struct {
-	uint8_t shutdown_delay;
 	struct lp_filter filter;
 	bool battery_meas;
 	uint8_t delay;
@@ -202,17 +197,7 @@ ISR(ADC_vect)
 
 		if (USE_DEEP_SLEEP) {
 			/* If the PWM is disabled, request deep sleep to save power. */
-			if (filt_setpoint == 0u) {
-				if (adc.shutdown_delay) {
-					adc.shutdown_delay--;
-				} else {
-					/* Request a microcontroller deep sleep. */
-					system_set_standby(true);
-				}
-			} else {
-				adc.shutdown_delay = ADC_SHUTDOWN_DELAY;
-				system_set_standby(false);
-			}
+			system_set_standby(raw_setpoint == 0u);
 		}
 	}
 
@@ -232,8 +217,6 @@ ISR(ADC_vect)
 void adc_init(bool enable)
 {
 	lp_filter_reset(&adc.filter);
-	if (USE_DEEP_SLEEP)
-		adc.shutdown_delay = ADC_SHUTDOWN_DELAY;
 	adc.prev_pwm_count = pwm_get_irq_count();
 	memory_barrier();
 
