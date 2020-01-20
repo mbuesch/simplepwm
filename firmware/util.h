@@ -24,8 +24,9 @@
 #define clamp(value, min_val, max_val)		\
 	max(min(value, max_val), min_val)
 
-/* Limit an unsigned integer to uint16_t range. */
-#define lim_u16(v)	((uint16_t)min((v), (__typeof__(v))UINT16_MAX))
+/* Limit an unsigned integer to uint8_t/uint16_t range. */
+#define lim_u8(v)	((uint8_t)clamp((v), (__typeof__(v))0, (__typeof__(v))UINT8_MAX))
+#define lim_u16(v)	((uint16_t)clamp((v), (__typeof__(v))0, (__typeof__(v))UINT16_MAX))
 
 /* Return the absolute value of 'val' */
 #undef abs
@@ -55,6 +56,13 @@
 #else
 # define unreachable()		while (1)
 #endif
+
+
+/* Non-standard integer types. */
+typedef __int24		int24_t;
+#define int24_t int24_t
+typedef __uint24	uint24_t;
+#define uint24_t uint24_t
 
 
 /* Disable interrupts globally. */
