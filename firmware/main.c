@@ -24,6 +24,7 @@
 #include "pwm.h"
 #include "adc.h"
 #include "watchdog.h"
+#include "arithmetic.h"
 
 
 /* Potentiometer enable pin. */
@@ -207,7 +208,7 @@ void system_handle_watchdog_interrupt(void)
 		}
 
 		/* Check if we need to measure the battery voltage. */
-		bat.elapsed_ms = lim_u16((uint32_t)bat.elapsed_ms + watchdog_interval_ms());
+		bat.elapsed_ms = add_sat_u16(bat.elapsed_ms, watchdog_interval_ms());
 		if (bat.elapsed_ms >= bat.interval_ms) {
 			bat.elapsed_ms = 0;
 			/* Must be called with interrupts disabled. */
