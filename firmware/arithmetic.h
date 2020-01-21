@@ -165,16 +165,28 @@ static inline uint24_t sub_sat_u24(uint24_t a, uint24_t b)
 static inline uint16_t sub_sat_u16(uint16_t a, uint16_t b)
 {
 #if ARITHMETIC_ASM_AVR8
-	__asm__ __volatile__(
-		"sub %A0, %A1 \n"
-		"sbc %B0, %B1 \n"
-		"brcc 1f \n"
-		"clr %A0 \n"
-		"clr %B0 \n"
-		"1: \n"
-		: "+r" (a)
-		: "r" (b)
-	);
+	if (__builtin_constant_p(b)) {
+		__asm__ __volatile__(
+			"sbiw %A0, %A1 \n"
+			"brcc 1f \n"
+			"clr %A0 \n"
+			"clr %B0 \n"
+			"1: \n"
+			: "+r" (a)
+			: "M" (b)
+		);
+	} else {
+		__asm__ __volatile__(
+			"sub %A0, %A1 \n"
+			"sbc %B0, %B1 \n"
+			"brcc 1f \n"
+			"clr %A0 \n"
+			"clr %B0 \n"
+			"1: \n"
+			: "+r" (a)
+			: "r" (b)
+		);
+	}
 	return a;
 #else
 	uint16_t x = (uint16_t)(a - b);
@@ -188,14 +200,25 @@ static inline uint16_t sub_sat_u16(uint16_t a, uint16_t b)
 static inline uint8_t sub_sat_u8(uint8_t a, uint8_t b)
 {
 #if ARITHMETIC_ASM_AVR8
-	__asm__ __volatile__(
-		"sub %0, %1 \n"
-		"brcc 1f \n"
-		"clr %0 \n"
-		"1: \n"
-		: "+r" (a)
-		: "r" (b)
-	);
+	if (__builtin_constant_p(b)) {
+		__asm__ __volatile__(
+			"subi %0, %1 \n"
+			"brcc 1f \n"
+			"clr %0 \n"
+			"1: \n"
+			: "+r" (a)
+			: "M" (b)
+		);
+	} else {
+		__asm__ __volatile__(
+			"sub %0, %1 \n"
+			"brcc 1f \n"
+			"clr %0 \n"
+			"1: \n"
+			: "+r" (a)
+			: "r" (b)
+		);
+	}
 	return a;
 #else
 	uint8_t x = (uint8_t)(a - b);
