@@ -131,6 +131,12 @@ ISR(WDT_vect)
 			watchdog_reconfigure();
 		}
 	}
+	/* If the battery voltage is critical,
+	 * go to the slowest watchdog interval. */
+	if (battery_voltage_is_critical()) {
+		watchdog.state = WATCHDOG_NR_STATES - 1u;
+		watchdog_reconfigure();
+	}
 
 	memory_barrier();
 	WDTCR |= (1 << WDIE);
