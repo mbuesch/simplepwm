@@ -25,6 +25,8 @@
 #include "adc.h"
 #include "watchdog.h"
 #include "arithmetic.h"
+#include "curve.h"
+#include "curve_data_sp2batdrop.h"
 
 
 /* Potentiometer enable pin. */
@@ -52,6 +54,8 @@ static struct {
 #define BAT_CRITICAL_HYST_MV	300u  /* millivolts */
 /* Battery voltages above this threshold are not plausible: */
 #define BAT_PLAUS_MAX_MV	6500u /* millivolts */
+/* The maximum allowed voltage drop from the drop model. */
+#define BAT_DROP_MODEL_MAX_MV	400u /* millivolts */
 
 /* Battery monitoring intervals (in seconds). */
 #define BAT_INT_ON		10        /* During PWM output on */
@@ -78,18 +82,35 @@ bool battery_voltage_is_critical(void)
 	return bat.voltage_critical && USE_BAT_MONITOR;
 }
 
-/* Evaluate the measured battery voltage. */
+/* Evaluate the measured battery voltage.
+ * May be called with interrupts enabled. */
 void evaluate_battery_voltage(uint16_t vcc_mv)
 {
+	uint16_t setpoint;
+	uint16_t drop_mv;
+	uint16_t noload_vcc_mv;
+	uint8_t irq_state;
+
 	if (USE_BAT_MONITOR) {
-		if (vcc_mv >= (BAT_CRITICAL_MIN_MV + BAT_CRITICAL_HYST_MV))
+		/* Calculate the battery voltage that we would have without load.
+		 * by adding the drop voltage from the drop model. */
+		setpoint = pwm_sp_get();
+		drop_mv = curve_interpolate(sp2batdrop_curve,
+					    ARRAY_SIZE(sp2batdrop_curve),
+					    setpoint);
+		drop_mv = min(drop_mv, BAT_DROP_MODEL_MAX_MV);
+		noload_vcc_mv = add_sat_u16(vcc_mv, drop_mv);
+
+		/* Evaluate the no-load battery voltage and set the
+		 * critical flag, if needed. */
+		irq_state = irq_disable_save();
+		if (noload_vcc_mv >= (BAT_CRITICAL_MIN_MV + BAT_CRITICAL_HYST_MV))
 			bat.voltage_critical = false;
-
-		if (vcc_mv < BAT_CRITICAL_MIN_MV)
+		if (noload_vcc_mv < BAT_CRITICAL_MIN_MV)
 			bat.voltage_critical = true;
-
-		if (vcc_mv > BAT_PLAUS_MAX_MV)
+		if (noload_vcc_mv > BAT_PLAUS_MAX_MV)
 			bat.voltage_critical = true;
+		irq_restore(irq_state);
 	}
 }
 
