@@ -22,13 +22,13 @@
 #include "watchdog.h"
 #include "main.h"
 #include "util.h"
+#include "arithmetic.h"
 
 
 static struct {
 	uint8_t state;
 	uint8_t transition_delay;
 	uint8_t active_wdto;
-	bool standby;
 } watchdog;
 
 static const __flash struct {
@@ -52,7 +52,7 @@ static const __flash struct {
 
 
 /* Write to the WDT hardware register. */
-static void wdt_setup(uint8_t wdto, bool wde, bool wdie)
+static alwaysinline void wdt_setup(uint8_t wdto, bool wde, bool wdie)
 {
 	__asm__ __volatile__(
 		"wdr \n"
@@ -67,27 +67,26 @@ static void wdt_setup(uint8_t wdto, bool wde, bool wdie)
 	);
 }
 
-static uint8_t watchdog_get_state(void)
-{
-	return min(watchdog.state, WATCHDOG_NR_STATES - 1u);
-}
-
 /* Get the currently active watchdog interrupt trigger interval, in milliseconds. */
 uint16_t watchdog_interval_ms(void)
 {
 	if (USE_DEEP_SLEEP)
-		return watchdog_timeouts[watchdog_get_state()].ms;
+		return watchdog_timeouts[watchdog.state].ms;
 	return 0;
 }
 
 /* Reconfigure the watchdog interval.
  * Interrupts shall be disabled before calling this function. */
-static void watchdog_reconfigure(void)
+static void watchdog_reconfigure(uint8_t new_state)
 {
 	uint8_t wdto;
 
 	if (USE_DEEP_SLEEP) {
-		wdto = watchdog_timeouts[watchdog_get_state()].wdto;
+		new_state = min(new_state, WATCHDOG_NR_STATES - 1u);
+		watchdog.state = new_state;
+		watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
+
+		wdto = watchdog_timeouts[new_state].wdto;
 		if (wdto != watchdog.active_wdto) {
 			watchdog.active_wdto = wdto;
 			wdt_setup(wdto, true, USE_DEEP_SLEEP);
@@ -100,14 +99,11 @@ static void watchdog_reconfigure(void)
 void watchdog_set_standby(bool standby)
 {
 	if (USE_DEEP_SLEEP) {
-		if (!standby) {
+		if (!standby && !battery_voltage_is_critical()) {
 			/* Not in standby mode.
 			 * Revert back to fast watchdog interval. */
-			watchdog.state = 0;
-			watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
-			watchdog_reconfigure();
+			watchdog_reconfigure(0);
 		}
-		watchdog.standby = standby;
 	}
 }
 
@@ -121,22 +117,14 @@ ISR(WDT_vect)
 	system_handle_watchdog_interrupt();
 
 	/* Go to the next watchdog interval state. */
-	if (watchdog.transition_delay) {
-		watchdog.transition_delay--;
-	} else {
-		watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
+	watchdog.transition_delay = sub_sat_u8(watchdog.transition_delay, 1u);
+	if (watchdog.transition_delay == 0u)
+		watchdog_reconfigure((uint8_t)(watchdog.state + 1u));
 
-		if (watchdog.state < WATCHDOG_NR_STATES - 1u) {
-			watchdog.state++;
-			watchdog_reconfigure();
-		}
-	}
 	/* If the battery voltage is critical,
 	 * go to the slowest watchdog interval. */
-	if (battery_voltage_is_critical()) {
-		watchdog.state = WATCHDOG_NR_STATES - 1u;
-		watchdog_reconfigure();
-	}
+	if (battery_voltage_is_critical())
+		watchdog_reconfigure(WATCHDOG_NR_STATES - 1u);
 
 	memory_barrier();
 	WDTCR |= (1 << WDIE);
