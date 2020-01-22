@@ -36,7 +36,7 @@
 #define PWM_HIGHRES_SP_THRES	0x9FFu
 #define PWM_HIGHRES_SP_HYST	0x200u
 
-/* PWM timer modes for pwm_set() */
+/* PWM timer modes for pwm_sp_set() */
 #define PWM_UNKNOWN_MODE	0u
 #define PWM_IRQ_MODE		1u /* Interrupt mode */
 #define PWM_HW_MODE		2u /* Hardware-PWM mode */
@@ -188,8 +188,9 @@ ISR(TIM0_OVF_vect)
 	memory_barrier();
 }
 
-/* Set the PWM setpoint. */
-void pwm_set(uint16_t setpoint)
+/* Set the PWM setpoint.
+ * Must be called with interrupts disabled. */
+void pwm_sp_set(uint16_t setpoint)
 {
 	uint32_t pwm_duty_range;
 	uint8_t pwm_duty;
@@ -296,6 +297,19 @@ void pwm_set(uint16_t setpoint)
 	}
 }
 
+/* Get the active PWM setpoint. */
+uint16_t pwm_sp_get(void)
+{
+	uint16_t setpoint;
+	uint8_t irq_state;
+
+	irq_state = irq_disable_save();
+	setpoint = pwm.active_setpoint;
+	irq_restore(irq_state);
+
+	return setpoint;
+}
+
 /* Initialize the PWM timer. */
 void pwm_init(bool enable)
 {
@@ -304,7 +318,7 @@ void pwm_init(bool enable)
 
 	/* Initialize output. */
 	if (enable)
-		pwm_set(0u);
+		pwm_sp_set(0u);
 	else
 		pwm_turn_off();
 }

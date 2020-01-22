@@ -108,7 +108,7 @@ void output_setpoint(uint16_t setpoint)
 	}
 
 	/* Set the PWM output signal. */
-	pwm_set(setpoint);
+	pwm_sp_set(setpoint);
 }
 
 /* If standby, enter deep sleep in the next main loop iteration.
