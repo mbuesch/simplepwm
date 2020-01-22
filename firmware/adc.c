@@ -142,15 +142,15 @@ ISR(ADC_vect)
 			} else
 				vcc_mv = UINT16_MAX;
 
+			/* Report the measured battery voltage to the
+			 * battery voltage logic. */
+			evaluate_battery_voltage(vcc_mv);
+
 			/* Disable interrupts for
-			 * - battery voltage evaluation
 			 * - PWM shut down
 			 * - ADC re-init */
 			irq_disable();
 
-			/* Report the measured battery voltage to the
-			 * battery voltage logic. */
-			evaluate_battery_voltage(vcc_mv);
 			if (battery_voltage_is_critical()) {
 				/* Turn the output off immediately.
 				 * This also reconfigures the
