@@ -24,7 +24,7 @@
 #include "util.h"
 #include "main.h"
 #include "curve.h"
-#include "curve_data.h"
+#include "curve_data_adc2sp.h"
 #include "pwm.h"
 #include "filter.h"
 
