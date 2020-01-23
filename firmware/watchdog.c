@@ -66,6 +66,7 @@ static alwaysinline void wdt_setup(uint8_t wdto, bool wde, bool wdie)
 					  (wdie ? (1u << WDIE) : 0u) |
 					  (wdto & 0x07u)))
 	);
+	watchdog.active_wdto = wdto;
 }
 
 /* Get the currently active watchdog interrupt trigger interval, in milliseconds. */
@@ -97,10 +98,8 @@ static void watchdog_reconfigure(uint8_t new_state)
 
 		/* Program the hardware, if required. */
 		wdto = watchdog_timeouts[new_state].wdto;
-		if (wdto != watchdog.active_wdto) {
-			watchdog.active_wdto = wdto;
+		if (wdto != watchdog.active_wdto)
 			wdt_setup(wdto, true, USE_DEEP_SLEEP);
-		}
 	}
 }
 
@@ -144,8 +143,8 @@ static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
 	MCUSR = 0;
 
 	/* Enable the watchdog. */
-	watchdog.active_wdto = watchdog_timeouts[WATCHDOG_INIT_STATE].wdto;
-	wdt_setup(watchdog.active_wdto, true, USE_DEEP_SLEEP);
+	wdt_setup(watchdog_timeouts[WATCHDOG_INIT_STATE].wdto,
+		  true, USE_DEEP_SLEEP);
 
 	/* Enable watchdog interrupt for wake up from deep sleep. */
 	if (USE_DEEP_SLEEP) {
