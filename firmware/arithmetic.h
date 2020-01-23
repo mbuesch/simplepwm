@@ -89,14 +89,25 @@ static inline uint16_t add_sat_u16(uint16_t a, uint16_t b)
 static inline uint8_t add_sat_u8(uint8_t a, uint8_t b)
 {
 #if ARITHMETIC_ASM_AVR8
-	__asm__ __volatile__(
-		"add %0, %1 \n"
-		"brcc 1f \n"
-		"ldi %0, 0xFF \n"
-		"1: \n"
-		: "+d" (a)
-		: "d" (b)
-	);
+	if (__builtin_constant_p(b) && (b == 1u)) {
+		__asm__ __volatile__(
+			"inc %0 \n"
+			"brne 1f \n"
+			"com %0 \n"
+			"1: \n"
+			: "+r" (a)
+			: /* none */
+		);
+	} else {
+		__asm__ __volatile__(
+			"add %0, %1 \n"
+			"brcc 1f \n"
+			"ldi %0, 0xFF \n"
+			"1: \n"
+			: "+d" (a)
+			: "d" (b)
+		);
+	}
 	return a;
 #else
 	uint8_t x = (uint8_t)(a + b);
