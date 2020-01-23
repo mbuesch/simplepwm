@@ -19,9 +19,8 @@ static inline uint32_t add_sat_u32(uint32_t a, uint32_t b)
 		"brcc 1f \n"
 		"ldi %A0, 0xFF \n"
 		"ldi %B0, 0xFF \n"
-		"movw %C0, %A0 \n"
-/*		"ldi %C0, 0xFF \n"
-		"ldi %D0, 0xFF \n" */
+		"ldi %C0, 0xFF \n"
+		"ldi %D0, 0xFF \n"
 		"1: \n"
 		: "+d" (a)
 		: "d" (b)
@@ -129,9 +128,8 @@ static inline uint32_t sub_sat_u32(uint32_t a, uint32_t b)
 		"brcc 1f \n"
 		"clr %A0 \n"
 		"clr %B0 \n"
-		"movw %C0, %A0 \n"
-/*		"clr %C0 \n"
-		"clr %D0 \n" */
+		"clr %C0 \n"
+		"clr %D0 \n"
 		"1: \n"
 		: "+r" (a)
 		: "r" (b)
