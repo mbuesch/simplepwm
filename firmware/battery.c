@@ -90,9 +90,12 @@ void evaluate_battery_voltage(uint16_t vcc_mv)
 	uint8_t irq_state;
 
 	if (USE_BAT_MONITOR) {
+		/* Get the active setpoint.
+		 * If the battery voltage already is critical
+		 * and PWM is turned off, then this will be 0. */
+		setpoint = pwm_sp_get();
 		/* Calculate the battery voltage that we would have without load.
 		 * by adding the drop voltage from the drop model. */
-		setpoint = pwm_sp_get();
 		drop_mv = curve_interpolate(sp2batdrop_curve,
 					    ARRAY_SIZE(sp2batdrop_curve),
 					    setpoint);

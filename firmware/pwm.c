@@ -93,6 +93,10 @@ static void pwm_turn_off(void)
 
 	/* Set output to idle state. */
 	port_out_set(false);
+
+	memory_barrier();
+	pwm.active_mode = PWM_UNKNOWN_MODE;
+	pwm.active_setpoint = 0u;
 }
 
 /* In high resolution mode TIM0_OVF_vect triggers with a frequency of:
@@ -200,7 +204,6 @@ void pwm_sp_set(uint16_t setpoint)
 
 		/* The battery is not Ok. Turn off all outputs. */
 		pwm_turn_off();
-		pwm.active_mode = PWM_UNKNOWN_MODE;
 
 	} else {
 		/* Determine the mode.
