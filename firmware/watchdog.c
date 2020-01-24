@@ -23,6 +23,7 @@
 #include "main.h"
 #include "util.h"
 #include "arithmetic.h"
+#include "battery.h"
 
 
 static struct {

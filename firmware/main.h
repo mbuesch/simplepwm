@@ -23,8 +23,6 @@
 #endif
 
 
-bool battery_voltage_is_critical(void);
-void evaluate_battery_voltage(uint16_t vcc_mv);
 void output_setpoint(uint16_t setpoint);
 void system_set_standby(bool standby);
 void system_handle_watchdog_interrupt(void);

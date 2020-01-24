@@ -27,6 +27,7 @@
 #include "curve_data_adc2sp.h"
 #include "pwm.h"
 #include "filter.h"
+#include "battery.h"
 
 
 /* ADC configuration. */

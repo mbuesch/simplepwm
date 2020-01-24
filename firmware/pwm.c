@@ -22,6 +22,7 @@
 #include "pwm.h"
 #include "util.h"
 #include "main.h"
+#include "battery.h"
 
 
 /* Physical PWM limits */
