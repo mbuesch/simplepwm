@@ -125,16 +125,11 @@ ISR(TIM0_OVF_vect)
 	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
 	delay_count = lim_u16(tmp);
 
+	port_out_set(false);
+
 	/* Switch the PWM output high, then delay, then switch the output low.
 	 * (It it Ok to delay for a short time in this interrupt). */
-	if (delay_count == 0) {
-		/* No delay (off) */
-
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_LOW
-		: : ASM_INPUTS
-		: );
-	} else if (delay_count == 1) {
+	if (delay_count == 1u) {
 		/* 1 clock delay */
 
 		__asm__ __volatile__ (
@@ -142,7 +137,7 @@ ISR(TIM0_OVF_vect)
 			ASM_PWM_OUT_LOW
 		: : ASM_INPUTS
 		: );
-	} else if (delay_count == 2) {
+	} else if (delay_count == 2u) {
 		/* 2 clocks delay */
 
 		__asm__ __volatile__ (
@@ -157,30 +152,34 @@ ISR(TIM0_OVF_vect)
 		 * -> divide count */
 		uint8_t delay_count8 = (uint8_t)(delay_count / 3u);
 
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_HIGH
-		"1:	dec %[_delay_count8]	\n"
-		"	brne 1b			\n"
-			ASM_PWM_OUT_LOW
-		: [_delay_count8] "=d" (delay_count8)
-		:                 "0" (delay_count8),
-		  ASM_INPUTS
-		: );
+		if (delay_count > 0u) {
+			__asm__ __volatile__ (
+				ASM_PWM_OUT_HIGH
+			"1:	dec %[_delay_count8]	\n"
+			"	brne 1b			\n"
+				ASM_PWM_OUT_LOW
+			: [_delay_count8] "=d" (delay_count8)
+			:                 "0" (delay_count8),
+			  ASM_INPUTS
+			: );
+		}
 #endif /* !SMALL_DEVICE */
 	} else {
 		/* 4 clocks per loop iteration
 		 * -> divide count */
 		delay_count /= 4u;
 
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_HIGH
-		"1:	sbiw %[_delay_count], 1	\n"
-		"	brne 1b			\n"
-			ASM_PWM_OUT_LOW
-		: [_delay_count] "=w" (delay_count)
-		:                "0" (delay_count),
-		  ASM_INPUTS
-		: );
+		if (delay_count > 0u) {
+			__asm__ __volatile__ (
+				ASM_PWM_OUT_HIGH
+			"1:	sbiw %[_delay_count], 1	\n"
+			"	brne 1b			\n"
+				ASM_PWM_OUT_LOW
+			: [_delay_count] "=w" (delay_count)
+			:                "0" (delay_count),
+			  ASM_INPUTS
+			: );
+		}
 	}
 
 	pwm.irq_count++;
