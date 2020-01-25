@@ -1,7 +1,7 @@
 ######################################################
 # AVR make library                                   #
 # Copyright (c) 2015-2020 Michael Buesch <m@bues.ch> #
-# Version 1.10                                       #
+# Version 1.11                                       #
 ######################################################
 
 ifeq ($(NAME),)
@@ -47,7 +47,7 @@ SPARSE			:= sparse
 # Verbose build:        	make V=1
 V			:= @
 # Sparsechecker build:  	make C=1
-C			:= 0
+C			:= $(shell $(SPARSE) --help >/dev/null 2>&1 && $(ECHO) 1 || $(ECHO) 0)
 # Debug build:          	make DEBUG=1
 DEBUG			:= 0
 # Optimize flag:		make O=0/1/2/3/s
