@@ -137,7 +137,11 @@ ISR(TIM0_OVF_vect)
 			ASM_PWM_OUT_LOW
 		: : ASM_INPUTS
 		: );
+#if SMALL_DEVICE
+	} else if (delay_count == 2u || delay_count == 3u) {
+#else
 	} else if (delay_count == 2u) {
+#endif
 		/* 2 clocks delay */
 
 		__asm__ __volatile__ (
