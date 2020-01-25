@@ -39,10 +39,9 @@ static const __flash struct {
 	{ .wdto = WDTO_60MS,	.ms = 60,	}, /* First normal state */
 	{ .wdto = WDTO_120MS,	.ms = 120,	},
 	{ .wdto = WDTO_250MS,	.ms = 250,	},
-	{ .wdto = WDTO_500MS,	.ms = 500,	},
-	{ .wdto = WDTO_1S,	.ms = 1000,	}, /* Last normal state */
-	/* Battery-low state: */
-	{ .wdto = WDTO_2S,	.ms = 2000,	},
+	{ .wdto = WDTO_500MS,	.ms = 500,	}, /* Last normal state */
+	/* ----------------------------------- */
+	{ .wdto = WDTO_2S,	.ms = 2000,	}, /* Battery-low state */
 };
 #define WATCHDOG_FIRST_NORMAL_STATE	0u
 #define WATCHDOG_INIT_STATE		(WATCHDOG_FIRST_NORMAL_STATE + 1u)
