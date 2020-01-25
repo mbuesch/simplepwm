@@ -21,6 +21,7 @@
 #include "compat.h"
 #include "filter.h"
 #include "util.h"
+#include "arithmetic.h"
 
 
 uint16_t lp_filter_run(struct lp_filter *lp,
@@ -30,7 +31,7 @@ uint16_t lp_filter_run(struct lp_filter *lp,
 	uint32_t buf;
 
 	buf = lp->filter_buf;
-	buf = (buf - (buf >> shift)) + in;
+	buf = add_sat_u32((buf - (buf >> shift)), in);
 	lp->filter_buf = buf;
 
 	return lim_u16(buf >> shift);
