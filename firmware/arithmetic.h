@@ -181,8 +181,8 @@ static inline uint16_t sub_sat_u16(uint16_t a, uint16_t b)
 			"clr %A0 \n"
 			"clr %B0 \n"
 			"1: \n"
-			: "+r" (a)
-			: "M" (b)
+			: "+w" (a)
+			: "I" (b)
 		);
 	} else {
 		__asm__ __volatile__(
@@ -215,7 +215,7 @@ static inline uint8_t sub_sat_u8(uint8_t a, uint8_t b)
 			"brcc 1f \n"
 			"clr %0 \n"
 			"1: \n"
-			: "+r" (a)
+			: "+d" (a)
 			: "M" (b)
 		);
 	} else {
