@@ -30,6 +30,12 @@
 #ifndef REFS2
 # define REFS2	4
 #endif
+#ifndef WDTCR
+# define WDTCR	WDTCSR
+#endif
+#ifndef TIM0_OVF_vect
+# define TIM0_OVF_vect TIMER0_OVF_vect
+#endif
 
 
 #endif /* COMPAT_H_ */
