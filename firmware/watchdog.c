@@ -55,17 +55,32 @@ static const __flash struct {
 /* Write to the WDT hardware register. */
 static alwaysinline void wdt_setup(uint8_t wdto, bool wde, bool wdie)
 {
-	__asm__ __volatile__(
-		"wdr \n"
-		"out %[WDTCR_], %[FIRST_] \n"
-		"out %[WDTCR_], %[SECND_] \n"
-		: /* no out */
-		: [WDTCR_] "I" (_SFR_IO_ADDR(WDTCR)),
-		  [FIRST_] "r" ((uint8_t)((1u << WDCE) | (1u << WDE))),
-		  [SECND_] "r" ((uint8_t)((wde ? (1u << WDE) : 0u) |
-					  (wdie ? (1u << WDIE) : 0u) |
-					  (wdto & 0x07u)))
-	);
+	const uint8_t first = (uint8_t)((1u << WDCE) | (1u << WDE));
+	const uint8_t secnd = (uint8_t)((wde ? (1u << WDE) : 0u) |
+					(wdie ? (1u << WDIE) : 0u) |
+					(wdto & 0x07u));
+
+	if (_SFR_IO_ADDR(WDTCR) > 0x3F) {
+		__asm__ __volatile__(
+			"wdr \n"
+			"sts %[WDTCR_], %[FIRST_] \n"
+			"sts %[WDTCR_], %[SECND_] \n"
+			: /* no out */
+			: [WDTCR_] "M" (_SFR_MEM_ADDR(WDTCR)),
+			  [FIRST_] "r" (first),
+			  [SECND_] "r" (secnd)
+		);
+	} else {
+		__asm__ __volatile__(
+			"wdr \n"
+			"out %[WDTCR_], %[FIRST_] \n"
+			"out %[WDTCR_], %[SECND_] \n"
+			: /* no out */
+			: [WDTCR_] "I" (_SFR_IO_ADDR(WDTCR)),
+			  [FIRST_] "r" (first),
+			  [SECND_] "r" (secnd)
+		);
+	}
 	watchdog.active_wdto = wdto;
 }
 
