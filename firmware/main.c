@@ -76,6 +76,25 @@ static void ports_init(void)
 		(0 << PB2) | (1 << PB1) | ((PWM_INVERT ? 1 : 0) << PB0);
 }
 
+/* Write the Power Reduction Register */
+static void set_PRR(bool full_powerdown)
+{
+#ifdef PRR
+	if (full_powerdown) {
+		PRR = (uint8_t)(0xFFu);
+	} else {
+		PRR = (uint8_t)(0xFFu
+# ifdef PRTIM0
+		^ (1u << PRTIM0) /* enable timer 0 */
+# endif
+# ifdef PRADC
+		^ (1u << PRADC) /* enable ADC */
+# endif
+		);
+	}
+#endif /* PRR */
+}
+
 /* Set power reduction mode.
  * full=false: Normal operation mode. Disable unused peripherals.
  * full=true: Prepare for deep sleep. Disable all peripherals.
@@ -87,15 +106,11 @@ static void power_reduction(bool full)
 		pwm_init(false);
 		adc_init(false);
 		potentiometer_enable(false);
-#ifdef PRR
-		PRR = (1 << PRTIM1) | (1 << PRTIM0) | (1 << PRUSI) | (1 << PRADC);
-#endif
+		set_PRR(true);
 	} else {
 		/* Disable only unused modules.
 		 * Enable used modules. */
-#ifdef PRR
-		PRR = (1 << PRTIM1) | (0 << PRTIM0) | (1 << PRUSI) | (0 << PRADC);
-#endif
+		set_PRR(false);
 		potentiometer_enable(true);
 		adc_init(true);
 		pwm_init(true);
@@ -121,7 +136,7 @@ void system_handle_watchdog_interrupt(void)
 static void disable_bod_then_sleep(void)
 {
 	//TODO test if this does actually work
-#if USE_DEEP_SLEEP
+#if USE_DEEP_SLEEP && defined(BOD_CONTROL_REG)
 	uint8_t tmp0, tmp1;
 
 	__asm__ __volatile__(
