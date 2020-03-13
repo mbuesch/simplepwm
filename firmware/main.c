@@ -26,9 +26,12 @@
 #include "watchdog.h"
 #include "battery.h"
 #include "potentiometer.h"
+#include "arithmetic.h"
 
 
 static struct {
+	uint16_t sys_active_ms;
+	uint16_t deep_sleep_delay_timer_ms;
 	bool deep_sleep_request;
 	bool deep_sleep_active;
 } system;
@@ -37,6 +40,12 @@ static struct {
 #if SMALL_DEVICE
 # warning "Deep sleep and battery monitoring disabled on small microcontroller (t13)."
 #endif
+
+
+/* Delay before entering deep sleep mode. */
+#define DEEP_SLEEP_DELAY_MS			5000u /* milliseconds */
+/* Use the deep sleep delay after this many active microseconds. */
+#define DEEP_SLEEP_DELAY_AFTER_ACTIVE_MS	300u /* milliseconds */
 
 
 /* Set the output signal (PWM) setpoint.
@@ -56,6 +65,15 @@ void system_set_standby(bool standby)
 {
 	if (USE_DEEP_SLEEP) {
 		watchdog_set_standby(standby);
+
+		/* If we are just entering deep sleep
+		 * and the system has been running for some time
+		 * then delay the deep sleep for a bit. */
+		if (standby &&
+		    !system.deep_sleep_request &&
+		    system.sys_active_ms >= DEEP_SLEEP_DELAY_AFTER_ACTIVE_MS)
+			system.deep_sleep_delay_timer_ms = DEEP_SLEEP_DELAY_MS;
+
 		system.deep_sleep_request = standby;
 	}
 }
@@ -120,12 +138,31 @@ static void power_reduction(bool full)
 /* A watchdog interrupt just occurred. */
 void system_handle_watchdog_interrupt(void)
 {
+	uint16_t sys_active_ms;
+
 	if (USE_DEEP_SLEEP) {
 		if (system.deep_sleep_active) {
 			/* We just woke up from deep sleep.
 			 * Re-enable all used peripherals. */
 			system.deep_sleep_active = false;
 			power_reduction(false);
+
+			sys_active_ms = 0u;
+		} else
+			sys_active_ms = watchdog_interval_ms();
+
+		/* The system is active.
+		 * Increment the active time. */
+		system.sys_active_ms = add_sat_u16(
+			system.sys_active_ms,
+			sys_active_ms);
+
+		if (system.deep_sleep_request) {
+			/* A deep sleep is pending.
+			 * Decrement the delay timer. */
+			system.deep_sleep_delay_timer_ms = sub_sat_u16(
+				system.deep_sleep_delay_timer_ms,
+				sys_active_ms);
 		}
 	}
 
@@ -174,14 +211,17 @@ int _mainfunc main(void)
 		memory_barrier();
 		go_deep = false;
 		if (USE_DEEP_SLEEP) {
-			if (system.deep_sleep_request)
+			if ((system.deep_sleep_request &&
+			     system.deep_sleep_delay_timer_ms == 0u) ||
+			    (battery_voltage_is_critical() &&
+			     !adc_battery_measurement_running())) {
+
 				go_deep = true;
-			if (battery_voltage_is_critical() &&
-			    !adc_battery_measurement_running())
-				go_deep = true;
+				system.sys_active_ms = 0u;
+				system.deep_sleep_request = false;
+			}
 
 			system.deep_sleep_active = go_deep;
-			system.deep_sleep_request = false;
 		}
 
 		#pragma GCC diagnostic ignored "-Wconversion"
