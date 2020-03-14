@@ -4,6 +4,19 @@
 #include "util.h"
 
 
+#if (defined(__AVR_ATmega88P__) ||\
+     defined(__AVR_ATmega328P__))
+# define IS_ATMEGAx8		1
+#elif (defined(__AVR_ATtiny13__) ||\
+       defined(__AVR_ATtiny25__) ||\
+       defined(__AVR_ATtiny45__) ||\
+       defined(__AVR_ATtiny85__))
+# define IS_ATMEGAx8		0
+#else
+# error "Unknown microcontroller."
+#endif
+
+
 /* If this is a small device with small flash size,
  * set SMALL_DEVICE to 1. */
 #ifdef __AVR_ATtiny13__

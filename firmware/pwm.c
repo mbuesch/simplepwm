@@ -42,6 +42,15 @@
 #define PWM_IRQ_MODE		1u /* Interrupt mode */
 #define PWM_HW_MODE		2u /* Hardware-PWM mode */
 
+/* Output ports. */
+#if IS_ATMEGAx8
+# define PWM_TIM0_PORT		PORTD
+# define PWM_TIM0_PORTBIT	PD6
+#else
+# define PWM_TIM0_PORT		PORTB
+# define PWM_TIM0_PORTBIT	PB0
+#endif
+
 
 static struct {
 	uint8_t active_mode;
@@ -58,9 +67,9 @@ static struct {
 # define ASM_PWM_OUT_LOW	"cbi %[_OUT_PORT], %[_OUT_BIT] \n"
 #endif
 
-#define ASM_INPUTS					\
-	[_OUT_PORT]	"I" (_SFR_IO_ADDR(PORTB)),	\
-	[_OUT_BIT]	"M" (PB0)
+#define ASM_INPUTS						\
+	[_OUT_PORT]	"I" (_SFR_IO_ADDR(PWM_TIM0_PORT)),	\
+	[_OUT_BIT]	"M" (PWM_TIM0_PORTBIT)
 
 
 
@@ -80,9 +89,9 @@ uint8_t pwm_get_irq_count(void)
 static void port_out_set(bool high)
 {
 	if (high ^ PWM_INVERT)
-		PORTB |= (1 << PB0);
+		PWM_TIM0_PORT |= (1u << PWM_TIM0_PORTBIT);
 	else
-		PORTB &= (uint8_t)~(1 << PB0);
+		PWM_TIM0_PORT &= (uint8_t)~(1u << PWM_TIM0_PORTBIT);
 }
 
 /* Shutdown the PWM and the output. */
@@ -250,7 +259,7 @@ void pwm_sp_set(uint16_t setpoint)
 		}
 
 		if (mode == PWM_IRQ_MODE || pwm_duty == PWM_MIN) {
-			/* In interrupt mode or of the duty cycle is zero,
+			/* In interrupt mode or if the duty cycle is zero,
 			 * do not drive the output pin by hardware. */
 			TCCR0A = (0u << COM0A1) | (0u << COM0A0) |\
 				 (0u << COM0B1) | (0u << COM0B0) |\
@@ -266,7 +275,7 @@ void pwm_sp_set(uint16_t setpoint)
 			/* Set the duty cycle in hardware. */
 			if (pwm_duty == PWM_MIN) {
 				/* Zero duty cycle. Set HW pin directly. */
-				PORTB |= (1 << PB0);
+				PWM_TIM0_PORT |= (1u << PWM_TIM0_PORTBIT);
 			} else {
 				/* Non-zero duty cycle. Use timer to drive pin. */
 				OCR0A = pwm_duty;

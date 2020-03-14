@@ -60,10 +60,17 @@ static void adc_configure(bool enable)
 
 	if (enable) {
 		if (adc_battery_measurement_running()) {
-			/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
-			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
-				(0 << ADLAR) |
-				(1 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
+			if (IS_ATMEGAx8) {
+				/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
+				ADMUX = (0 << REFS1) | (1 << REFS0) |
+					(0 << ADLAR) |
+					(1 << MUX3) | (1 << MUX2) | (1 << MUX1) | (0 << MUX0);
+			} else {
+				/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
+				ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
+					(0 << ADLAR) |
+					(1 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
+			}
 			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
 			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
 				 (1 << ADIF) | (1 << ADIE) |
@@ -72,10 +79,17 @@ static void adc_configure(bool enable)
 			 * for Vbg settling time (1 ms). */
 			adc.delay = 10;
 		} else if (!battery_voltage_is_critical()) {
-			/* Ref = Vcc; in = ADC2/PB4; Right adjust */
-			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
-				(0 << ADLAR) |
-				(0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0);
+			if (IS_ATMEGAx8) {
+				/* Ref = Vcc; in = ADC2/PC2; Right adjust */
+				ADMUX = (0 << REFS1) | (1 << REFS0) |
+					(0 << ADLAR) |
+					(0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0);
+			} else {
+				/* Ref = Vcc; in = ADC2/PB4; Right adjust */
+				ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
+					(0 << ADLAR) |
+					(0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0);
+			}
 			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
 			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
 				 (1 << ADIF) | (1 << ADIE) |

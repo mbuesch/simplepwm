@@ -5,6 +5,8 @@
 #	t25	=> ATTiny25 with full feature set.
 #	t45	=> ATTiny45 with full feature set.
 #	t85	=> ATTiny85 with full feature set.
+#	m88p	=> ATMega88P with full feature set.
+#	m328p	=> ATMega328P with full feature set.
 DEV			:= t85
 
 # Limit the maximum PWM duty cycle to this percentage:
@@ -46,28 +48,54 @@ BOOT_OFFSET		:=
 ifeq ($(DEV),t13)
 # ATTiny 13
 # 9.6 MHz, SUT 4 ms, BOD 2.7 V, WDT on, SPIEN
+F_CPU			:= 9600000UL
 LFUSE			:= 0x56
 HFUSE			:= 0xFB
 EFUSE			:=
-else
-# ATTiny 25/45/85
+endif
+ifeq ($(DEV),t25)
+# ATTiny 25
 # 8 MHz, SUT 4 ms, BOD 2.7 V, WDT off, SPIEN
+F_CPU			:= 8000000UL
 LFUSE			:= 0xD2
 HFUSE			:= 0xDD
 EFUSE			:= 0xFF
 endif
-
-# CPU speed, in Hz
-ifeq ($(DEV),t13)
-# ATTiny 13
-F_CPU			:= 9600000UL
-else
-# ATTiny 25/45/85
+ifeq ($(DEV),t45)
+# ATTiny 45
+# 8 MHz, SUT 4 ms, BOD 2.7 V, WDT off, SPIEN
 F_CPU			:= 8000000UL
+LFUSE			:= 0xD2
+HFUSE			:= 0xDD
+EFUSE			:= 0xFF
+endif
+ifeq ($(DEV),t85)
+# ATTiny 85
+# 8 MHz, SUT 4 ms, BOD 2.7 V, WDT off, SPIEN
+F_CPU			:= 8000000UL
+LFUSE			:= 0xD2
+HFUSE			:= 0xDD
+EFUSE			:= 0xFF
+endif
+ifeq ($(DEV),m88p)
+# ATMega 88P
+# 8 MHz, SUT 4.1 ms, BOD 2.7 V, WDT off, SPIEN
+F_CPU			:= 8000000UL
+LFUSE			:= 0xD2
+HFUSE			:= 0xDD
+EFUSE			:= 0xF9
+endif
+ifeq ($(DEV),m328p)
+# ATMega 328P
+# 8 MHz, SUT 4.1 ms, BOD 2.7 V, WDT off, SPIEN
+F_CPU			:= 8000000UL
+LFUSE			:= 0xD2
+HFUSE			:= 0xD9
+EFUSE			:= 0xFD
 endif
 
 # Architecture configuration
-GCC_ARCH		:= $(subst t,attiny,$(DEV))
+GCC_ARCH		:= $(subst m,atmega,$(subst t,attiny,$(DEV)))
 AVRDUDE_ARCH		:= $(DEV)
 FUNC_STACK_LIMIT	:=
 
@@ -94,7 +122,13 @@ DISTCLEAN_FILES		:=
 
 streq = $(and $(filter 1,$(words $2)),$(filter $1,$(firstword $2)))
 deveq = $(call streq,$1,$(DEV))
-ifeq ($(strip $(call deveq,t13)$(call deveq,t25)$(call deveq,t45)$(call deveq,t85)),)
+
+ifeq ($(strip $(call deveq,t13)\
+	      $(call deveq,t25)\
+	      $(call deveq,t45)\
+	      $(call deveq,t85)\
+	      $(call deveq,m88p)\
+	      $(call deveq,m328p)),)
 $(error "DEV=$(DEV) is not supported.")
 endif
 

@@ -81,6 +81,49 @@ void system_set_standby(bool standby)
 /* Initialize I/O ports. */
 static void ports_init(void)
 {
+	const uint8_t P = (PWM_INVERT ? 1 : 0);
+
+#if IS_ATMEGAx8
+	/* PB0 = input / pullup
+	 * PB1 = input / pullup
+	 * PB2 = input / pullup
+	 * PB3 = input / pullup
+	 * PB4 = input / pullup
+	 * PB5 = input / pullup
+	 * PB6 = input / pullup
+	 * PB7 = input / pullup
+	 */
+	DDRB =  (0 << DDB7) | (0 << DDB6) | (0 << DDB5) | (0 << DDB4) |
+	        (0 << DDB3) | (0 << DDB2) | (0 << DDB1) | (0 << DDB0);
+	PORTB = (1 << PB7)  | (1 << PB6)  | (1 << PB5)  | (1 << PB4) |
+	        (1 << PB3)  | (1 << PB2)  | (1 << PB1)  | (1 << PB0);
+	/* PC0 = input / pullup
+	 * PC1 = input / pullup
+	 * PC2 = input / no pullup
+	 * PC3 = input / pullup
+	 * PC4 = output / low
+	 * PC5 = output / high
+	 * PC6 = input / no pullup
+	 * PC7 = n/c
+	 */
+	DDRC =  (0        ) | (0 << DDC6) | (1 << DDC5) | (1 << DDC4) |
+	        (0 << DDC3) | (0 << DDC2) | (0 << DDC1) | (0 << DDC0);
+	PORTC = (0       )  | (0 << PC6)  | (1 << PC5)  | (0 << PC4) |
+	        (1 << PC3)  | (0 << PC2)  | (1 << PC1)  | (1 << PC0);
+	/* PD0 = input / pullup
+	 * PD1 = input / pullup
+	 * PD2 = input / pullup
+	 * PD3 = input / pullup
+	 * PD4 = input / pullup
+	 * PD5 = input / pullup
+	 * PD6 = output
+	 * PD7 = input / pullup
+	 */
+	DDRD =  (0 << DDD7) | (1 << DDD6) | (0 << DDD5) | (0 << DDD4) |
+	        (0 << DDD3) | (0 << DDD2) | (0 << DDD1) | (0 << DDD0);
+	PORTD = (1 << PD7)  | (P << PD6)  | (1 << PD5)  | (1 << PD4) |
+	        (1 << PD3)  | (1 << PD2)  | (1 << PD1)  | (1 << PD0);
+#else
 	/* PB0 = output
 	 * PB1 = input / pullup
 	 * PB2 = output / low
@@ -88,10 +131,11 @@ static void ports_init(void)
 	 * PB4 = input / no pullup
 	 * PB5 = input / pullup
 	 */
-	DDRB = (0 << DDB5) | (0 << DDB4) | (1 << DDB3) |\
-	       (1 << DDB2) | (0 << DDB1) | (1 << DDB0);
-	PORTB = (1 << PB5) | (0 << PB4) | (1 << PB3) |\
-		(0 << PB2) | (1 << PB1) | ((PWM_INVERT ? 1 : 0) << PB0);
+	DDRB =  (0 << DDB5) | (0 << DDB4) | (1 << DDB3) |
+	        (1 << DDB2) | (0 << DDB1) | (1 << DDB0);
+	PORTB = (1 << PB5)  | (0 << PB4)  | (1 << PB3) |
+	        (0 << PB2)  | (1 << PB1)  | (P << PB0);
+#endif
 }
 
 /* Write the Power Reduction Register */

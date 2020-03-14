@@ -24,10 +24,17 @@
 
 
 /* Potentiometer enable pin. */
-#define POTEN_PORT		PORTB
-#define POTEN_DDR		DDRB
-#define POTEN_LO_BIT		2
-#define POTEN_HI_BIT		3
+#if IS_ATMEGAx8
+# define POTEN_PORT		PORTC
+# define POTEN_DDR		DDRC
+# define POTEN_LO_BIT		4
+# define POTEN_HI_BIT		5
+#else
+# define POTEN_PORT		PORTB
+# define POTEN_DDR		DDRB
+# define POTEN_LO_BIT		2
+# define POTEN_HI_BIT		3
+#endif
 
 
 /* Enable/disable the power supply to the potentiometer. */
