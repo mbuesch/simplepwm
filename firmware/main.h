@@ -36,7 +36,19 @@
 #endif
 
 
-void output_setpoint(uint16_t setpoint);
+/* RGB-LED support. */
+#if IS_ATMEGAx8
+# define USE_RGB		1
+# define IF_RGB(...)		__VA_ARGS__
+# define IF_NOT_RGB(...)	/* nothing */
+#else
+# define USE_RGB		0
+# define IF_RGB(...)		/* nothing */
+# define IF_NOT_RGB(...)	__VA_ARGS__
+#endif
+
+
+void output_setpoint(IF_RGB(uint8_t index,) uint16_t setpoint);
 void system_set_standby(bool standby);
 void system_handle_watchdog_interrupt(void);
 

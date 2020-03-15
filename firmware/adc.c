@@ -38,8 +38,18 @@
 
 #define ADC_FILTER_SHIFT	9
 
+#if IS_ATMEGAx8
+# define ADC0_MUX		((0 << MUX3) | (0 << MUX2) | (0 << MUX1) | (0 << MUX0))
+# define ADC1_MUX		((0 << MUX3) | (0 << MUX2) | (0 << MUX1) | (1 << MUX0))
+# define ADC2_MUX		((0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0))
+#else
+# define ADC0_MUX		((0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0))
+# define ADC1_MUX		0
+# define ADC2_MUX		0
+#endif
 
 static struct {
+	uint8_t index;
 	struct lp_filter filter;
 	bool battery_meas;
 	uint8_t delay;
@@ -82,13 +92,11 @@ static void adc_configure(bool enable)
 			if (IS_ATMEGAx8) {
 				/* Ref = Vcc; in = ADC2/PC2; Right adjust */
 				ADMUX = (0 << REFS1) | (1 << REFS0) |
-					(0 << ADLAR) |
-					(0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0);
+					(0 << ADLAR) | ADC0_MUX;
 			} else {
 				/* Ref = Vcc; in = ADC2/PB4; Right adjust */
 				ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
-					(0 << ADLAR) |
-					(0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0);
+					(0 << ADLAR) | ADC0_MUX;
 			}
 			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
 			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
@@ -126,6 +134,7 @@ ISR(ADC_vect)
 	uint16_t filt_setpoint;
 	uint16_t vcc_mv;
 	uint8_t pwm_count;
+	uint8_t i;
 	bool pwm_collision;
 
 	memory_barrier();
@@ -170,7 +179,8 @@ ISR(ADC_vect)
 				/* Turn the output off immediately.
 				 * This also reconfigures the
 				 * battery measurement interval. */
-				output_setpoint(0u);
+				for (i = 0u; i < NR_PWM; i++)
+					output_setpoint(IF_RGB(i,) 0u);
 			}
 
 			/* We're done.
@@ -208,8 +218,10 @@ ISR(ADC_vect)
 		irq_disable();
 
 		/* Change the output signal (PWM). */
-		output_setpoint(filt_setpoint);
+		output_setpoint(IF_RGB(adc.index,)
+				filt_setpoint);
 
+//TODO next ADC
 		if (USE_DEEP_SLEEP) {
 			/* If the PWM is disabled, request deep sleep to save power. */
 			system_set_standby(raw_setpoint == 0u);

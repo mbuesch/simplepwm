@@ -55,13 +55,13 @@ static struct {
 
 /* Set the output signal (PWM) setpoint.
  * Interrupts shall be disabled before calling this function. */
-void output_setpoint(uint16_t setpoint)
+void output_setpoint(IF_RGB(uint8_t index,) uint16_t setpoint)
 {
 	/* Tell battery management about the new setpoint. */
-	battery_update_setpoint(setpoint);
+	battery_update_setpoint(IF_RGB(index,) setpoint);
 
 	/* Set the PWM output signal. */
-	pwm_sp_set(setpoint);
+	pwm_sp_set(IF_RGB(index,) setpoint);
 }
 
 /* If standby, enter deep sleep in the next main loop iteration.
@@ -104,8 +104,8 @@ static void ports_init(void)
 	        (0 << DDB3) | (0 << DDB2) | (0 << DDB1) | (0 << DDB0);
 	PORTB = (1 << PB7) | (1 << PB6)  | (1 << PB5)  | (1 << PB4) |
 	        (1 << PB3)  | (1 << PB2)  | (1 << PB1)  | (1 << PB0);
-	/* PC0 = input / pullup
-	 * PC1 = input / pullup
+	/* PC0 = input / no pullup
+	 * PC1 = input / no pullup
 	 * PC2 = input / no pullup
 	 * PC3 = input / pullup
 	 * PC4 = output / low
@@ -116,7 +116,7 @@ static void ports_init(void)
 	DDRC =  (0        ) | (0 << DDC6) | (1 << DDC5) | (1 << DDC4) |
 	        (0 << DDC3) | (0 << DDC2) | (0 << DDC1) | (0 << DDC0);
 	PORTC = (0       )  | (0 << PC6)  | (1 << PC5)  | (0 << PC4) |
-	        (1 << PC3)  | (0 << PC2)  | (1 << PC1)  | (1 << PC0);
+	        (1 << PC3)  | (0 << PC2)  | (0 << PC1)  | (0 << PC0);
 	/* PD0 = input / pullup
 	 * PD1 = input / pullup
 	 * PD2 = input / pullup

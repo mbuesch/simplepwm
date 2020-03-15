@@ -53,8 +53,8 @@
 
 
 static struct {
-	uint8_t active_mode;
-	uint16_t active_setpoint;
+	uint8_t active_mode[NR_PWM];
+	uint16_t active_setpoint[NR_PWM];
 	uint8_t irq_count;
 } pwm;
 
@@ -97,6 +97,8 @@ static void port_out_set(bool high)
 /* Shutdown the PWM and the output. */
 static void pwm_turn_off(void)
 {
+	uint8_t i;
+
 	/* Stop timer. */
 	TCCR0B = 0u;
 	TCCR0A = 0u;
@@ -105,8 +107,10 @@ static void pwm_turn_off(void)
 	port_out_set(false);
 
 	memory_barrier();
-	pwm.active_mode = PWM_UNKNOWN_MODE;
-	pwm.active_setpoint = 0u;
+	for (i = 0u; i < NR_PWM; i++) {
+		pwm.active_mode[i] = PWM_UNKNOWN_MODE;
+		pwm.active_setpoint[i] = 0u;
+	}
 }
 
 /* In high resolution mode TIM0_OVF_vect triggers with a frequency of:
@@ -130,7 +134,7 @@ ISR(TIM0_OVF_vect)
 	 * The calculated value is a CPU delay loop value and thus
 	 * depends on the CPU frequency. */
 	memory_barrier();
-	tmp = pwm.active_setpoint;
+	tmp = pwm.active_setpoint[0];
 	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
 	delay_count = lim_u16(tmp);
 
@@ -207,11 +211,12 @@ ISR(TIM0_OVF_vect)
 
 /* Set the PWM setpoint.
  * Must be called with interrupts disabled. */
-void pwm_sp_set(uint16_t setpoint)
+void pwm_sp_set(IF_RGB(uint8_t index,) uint16_t setpoint)
 {
 	uint32_t pwm_duty_range;
 	uint8_t pwm_duty;
 	uint8_t mode;
+	IF_NOT_RGB(uint8_t index = 0u);
 
 	if (battery_voltage_is_critical()) {
 
@@ -231,7 +236,7 @@ void pwm_sp_set(uint16_t setpoint)
 		 * much higher resolution, but with much lower frequency
 		 * in the PWM timer interrupt.
 		 */
-		mode = pwm.active_mode;
+		mode = pwm.active_mode[index];
 		if ((setpoint > (PWM_HIGHRES_SP_THRES + PWM_HIGHRES_SP_HYST)) ||
 		    (setpoint == 0u)) {
 			mode = PWM_HW_MODE;
@@ -250,10 +255,10 @@ void pwm_sp_set(uint16_t setpoint)
 			pwm_duty = (uint8_t)(PWM_MAX - pwm_duty);
 
 		/* Store the setpoint for use by TIM0_OVF interrupt. */
-		pwm.active_setpoint = setpoint;
+		pwm.active_setpoint[index] = setpoint;
 		memory_barrier();
 
-		if (mode != pwm.active_mode) {
+		if (mode != pwm.active_mode[index]) {
 			/* Mode changed. Disable the timer before reconfiguring. */
 			TCCR0B = 0u;
 		}
@@ -282,8 +287,8 @@ void pwm_sp_set(uint16_t setpoint)
 			}
 		}
 
-		if (mode != pwm.active_mode) {
-			pwm.active_mode = mode;
+		if (mode != pwm.active_mode[index]) {
+			pwm.active_mode[index] = mode;
 
 			/* Reset the timer counter. */
 			TCNT0 = PWM_INVERT ? 0u : 0xFFu;
@@ -314,13 +319,15 @@ void pwm_sp_set(uint16_t setpoint)
 }
 
 /* Get the active PWM setpoint. */
-uint16_t pwm_sp_get(void)
+uint16_t pwm_sp_get(IF_RGB(uint8_t index)
+		    IF_NOT_RGB(void))
 {
 	uint16_t setpoint;
 	uint8_t irq_state;
+	IF_NOT_RGB(uint8_t index = 0u);
 
 	irq_state = irq_disable_save();
-	setpoint = pwm.active_setpoint;
+	setpoint = pwm.active_setpoint[index];
 	irq_restore(irq_state);
 
 	return setpoint;
@@ -329,12 +336,16 @@ uint16_t pwm_sp_get(void)
 /* Initialize the PWM timer. */
 void pwm_init(bool enable)
 {
+	uint8_t i;
+
 	/* Reset mode. */
-	pwm.active_mode = PWM_UNKNOWN_MODE;
+	for (i = 0u; i < NR_PWM; i++)
+		pwm.active_mode[i] = PWM_UNKNOWN_MODE;
 
 	/* Initialize output. */
-	if (enable)
-		pwm_sp_set(0u);
-	else
+	if (enable) {
+		for (i = 0u; i < NR_PWM; i++)
+			pwm_sp_set(IF_RGB(i,) 0u);
+	} else
 		pwm_turn_off();
 }
