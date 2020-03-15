@@ -47,6 +47,11 @@ static struct {
 /* Use the deep sleep delay after this many active microseconds. */
 #define DEEP_SLEEP_DELAY_AFTER_ACTIVE_MS	300u /* milliseconds */
 
+/* Main loop debug indicator. */
+#define MAINLOOPDBG_PIN		PINB
+#define MAINLOOPDBG_BIT		7u
+#define USE_MAINLOOPDBG		(DEBUG && IS_ATMEGAx8)
+
 
 /* Set the output signal (PWM) setpoint.
  * Interrupts shall be disabled before calling this function. */
@@ -84,6 +89,8 @@ static void ports_init(void)
 	const uint8_t P = (PWM_INVERT ? 1 : 0);
 
 #if IS_ATMEGAx8
+	const uint8_t D = (USE_MAINLOOPDBG ? 1 : 0);
+
 	/* PB0 = input / pullup
 	 * PB1 = input / pullup
 	 * PB2 = input / pullup
@@ -91,11 +98,11 @@ static void ports_init(void)
 	 * PB4 = input / pullup
 	 * PB5 = input / pullup
 	 * PB6 = input / pullup
-	 * PB7 = input / pullup
+	 * PB7 = output / high if USE_MAINLOOPDBG else input / pullup
 	 */
-	DDRB =  (0 << DDB7) | (0 << DDB6) | (0 << DDB5) | (0 << DDB4) |
+	DDRB =  (D << DDB7) | (0 << DDB6) | (0 << DDB5) | (0 << DDB4) |
 	        (0 << DDB3) | (0 << DDB2) | (0 << DDB1) | (0 << DDB0);
-	PORTB = (1 << PB7)  | (1 << PB6)  | (1 << PB5)  | (1 << PB4) |
+	PORTB = (1 << PB7) | (1 << PB6)  | (1 << PB5)  | (1 << PB4) |
 	        (1 << PB3)  | (1 << PB2)  | (1 << PB1)  | (1 << PB0);
 	/* PC0 = input / pullup
 	 * PC1 = input / pullup
@@ -251,6 +258,10 @@ int _mainfunc main(void)
 
 	while (1) {
 		irq_disable();
+
+		/* Toggle debug pin. */
+		if (USE_MAINLOOPDBG)
+			MAINLOOPDBG_PIN |= (1u << MAINLOOPDBG_BIT);
 
 		memory_barrier();
 		go_deep = false;
