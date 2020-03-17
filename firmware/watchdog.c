@@ -30,6 +30,7 @@ static struct {
 	uint8_t state;
 	uint8_t transition_delay;
 	uint8_t active_wdto;
+	bool standby;
 } watchdog;
 
 static const __flash struct {
@@ -94,25 +95,29 @@ uint16_t watchdog_interval_ms(void)
 
 /* Reconfigure the watchdog interval.
  * Interrupts shall be disabled before calling this function. */
-static void watchdog_reconfigure(uint8_t new_state)
+static void watchdog_reconfigure(void)
 {
 	uint8_t wdto;
 
 	if (USE_DEEP_SLEEP) {
-		/* If the battery voltage is critical,
-		 * enforce the slowest watchdog interval. */
 		if (battery_voltage_is_critical()) {
-			new_state = WATCHDOG_BATCRIT_STATE;
+			/* If the battery voltage is critical,
+			 * enforce the slowest watchdog interval. */
+			watchdog.state = WATCHDOG_BATCRIT_STATE;
+			watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
+		} else if (!watchdog.standby) {
+			/* If the system is fully running,
+			 * enforce the fastest watchdog interval. */
+			watchdog.state = WATCHDOG_FIRST_NORMAL_STATE;
+			watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
 		} else {
-			/* Limit the new state. */
-			new_state = min(new_state, WATCHDOG_LAST_NORMAL_STATE);
+			/* Limit the state to the normal range. */
+			watchdog.state = min(watchdog.state,
+					     WATCHDOG_LAST_NORMAL_STATE);
 		}
 
-		watchdog.state = new_state;
-		watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
-
 		/* Program the hardware, if required. */
-		wdto = watchdog_timeouts[new_state].wdto;
+		wdto = watchdog_timeouts[watchdog.state].wdto;
 		if (wdto != watchdog.active_wdto)
 			wdt_setup(wdto, true, USE_DEEP_SLEEP);
 	}
@@ -123,11 +128,8 @@ static void watchdog_reconfigure(uint8_t new_state)
 void watchdog_set_standby(bool standby)
 {
 	if (USE_DEEP_SLEEP) {
-		if (!standby && !battery_voltage_is_critical()) {
-			/* Not in standby mode.
-			 * Revert back to fast watchdog interval. */
-			watchdog_reconfigure(WATCHDOG_FIRST_NORMAL_STATE);
-		}
+		watchdog.standby = standby;
+		watchdog_reconfigure();
 	}
 }
 
@@ -140,10 +142,19 @@ ISR(WDT_vect)
 	/* Notify the system. */
 	system_handle_watchdog_interrupt();
 
-	/* Go to the next watchdog interval state. */
-	watchdog.transition_delay = sub_sat_u8(watchdog.transition_delay, 1u);
-	if ((watchdog.transition_delay == 0u) || battery_voltage_is_critical())
-		watchdog_reconfigure(add_sat_u8(watchdog.state, 1u));
+	/* Go to the next watchdog interval state,
+	 * if the system is in standby. */
+	if (watchdog.standby) {
+		watchdog.transition_delay = sub_sat_u8(watchdog.transition_delay, 1u);
+		if (watchdog.transition_delay == 0u) {
+			watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
+			if (watchdog.state < WATCHDOG_LAST_NORMAL_STATE)
+				watchdog.state++;
+		}
+	}
+
+	/* Configure the new interval, if required. */
+	watchdog_reconfigure();
 
 	memory_barrier();
 	WDTCR |= (1 << WDIE);
