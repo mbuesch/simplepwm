@@ -35,6 +35,7 @@ SRCS			:= \
 			curve.c \
 			filter.c \
 			main.c \
+			movingavg.c \
 			potentiometer.c \
 			pwm.c \
 			watchdog.c

@@ -254,7 +254,7 @@ int _mainfunc main(void)
 
 	ports_init();
 	power_reduction(false);
-	set_battery_mon_interval(0);
+	battery_init();
 
 	while (1) {
 		irq_disable();
