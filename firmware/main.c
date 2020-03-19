@@ -269,7 +269,7 @@ int _mainfunc main(void)
 			if ((system.deep_sleep_request &&
 			     system.deep_sleep_delay_timer_ms == 0u) ||
 			    (battery_voltage_is_critical() &&
-			     !adc_battery_measurement_running())) {
+			     !adc_battery_measurement_active())) {
 
 				go_deep = true;
 				system.sys_active_ms = 0u;

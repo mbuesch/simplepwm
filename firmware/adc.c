@@ -38,6 +38,8 @@
 
 #define ADC_FILTER_SHIFT	9
 
+#define NR_ADC			NR_PWM
+
 #if IS_ATMEGAx8
 # define ADC0_MUX		((0 << MUX3) | (0 << MUX2) | (0 << MUX1) | (0 << MUX0))
 # define ADC1_MUX		((0 << MUX3) | (0 << MUX2) | (0 << MUX1) | (1 << MUX0))
@@ -49,18 +51,90 @@
 #endif
 
 static struct {
+	/* Currently active ADC MUX */
 	uint8_t index;
-	struct lp_filter filter;
-	bool battery_meas;
+	/* Battery measurement requested. */
+	bool battery_meas_requested;
+	/* Battery measurement running. */
+	bool battery_meas_running;
+	/* SW filtering. Per ADC MUX. */
+	struct lp_filter filter[NR_ADC];
+	/* Is the input idle? */
+	bool standby_ready[NR_ADC];
+	/* Delay counter for battery measurement. */
 	uint8_t delay;
+	/* Previous PWM interrupt count state. */
 	uint8_t prev_pwm_count;
 } adc;
 
+
+/* Returns true, if a battery measurement conversion is currently active. */
+bool adc_battery_measurement_active(void)
+{
+	if (USE_BAT_MONITOR)
+		return adc.battery_meas_requested || adc.battery_meas_running;
+	return false;
+}
+
+/* Request a measurement of the battery voltage.
+ * Interrupts must be disabled before calling this function. */
+void adc_request_battery_measurement(void)
+{
+	if (USE_BAT_MONITOR)
+		adc.battery_meas_requested = true;
+}
+
+#define ADC_MUXMODE_NORM	0u
+#define ADC_MUXMODE_BAT		1u
+
+/* Configure the ADC multiplexer.
+ * Interrupts must be disabled before calling this function. */
+static inline void adc_configure_mux(uint8_t mux_mode, uint8_t index)
+{
+	uint8_t mux_bits;
+
+	if (mux_mode == ADC_MUXMODE_NORM) {
+		/* Normal input signal measurement mode. */
+
+		if (NR_ADC <= 1u || index == 0u)
+			mux_bits = ADC0_MUX;
+		else if (index == 1u)
+			mux_bits = ADC1_MUX;
+		else
+			mux_bits = ADC2_MUX;
+
+		if (IS_ATMEGAx8) {
+			/* Ref = Vcc; in = ADC0/1/2; Right adjust */
+			ADMUX = (0 << REFS1) | (1 << REFS0) |
+				(0 << ADLAR) | mux_bits;
+		} else {
+			/* Ref = Vcc; in = ADC2; Right adjust */
+			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
+				(0 << ADLAR) | mux_bits;
+		}
+	} else { /* mux_mode == ADC_MUXMODE_BAT */
+		/* Battery voltage measurement mode. */
+
+		if (IS_ATMEGAx8) {
+			/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
+			ADMUX = (0 << REFS1) | (1 << REFS0) |
+				(0 << ADLAR) |
+				(1 << MUX3) | (1 << MUX2) | (1 << MUX1) | (0 << MUX0);
+		} else {
+			/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
+			ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
+				(0 << ADLAR) |
+				(1 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
+		}
+	}
+}
 
 /* Configure the ADC hardware.
  * Interrupts must be disabled before calling this function. */
 static void adc_configure(bool enable)
 {
+	uint8_t auto_trigger;
+
 	/* Disable ADC unit. */
 	ADCSRA = 0;
 	/* Disable ADC2 digital input */
@@ -69,18 +143,11 @@ static void adc_configure(bool enable)
 	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
 
 	if (enable) {
-		if (adc_battery_measurement_running()) {
-			if (IS_ATMEGAx8) {
-				/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
-				ADMUX = (0 << REFS1) | (1 << REFS0) |
-					(0 << ADLAR) |
-					(1 << MUX3) | (1 << MUX2) | (1 << MUX1) | (0 << MUX0);
-			} else {
-				/* Ref = Vcc; in = Vbg (1.1V); Right adjust */
-				ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
-					(0 << ADLAR) |
-					(1 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
-			}
+		if (adc_battery_measurement_active()) {
+			/* Configure the MUX to battery measurement. */
+			adc.battery_meas_requested = false;
+			adc.battery_meas_running = true;
+			adc_configure_mux(ADC_MUXMODE_BAT, 0u);
 			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
 			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
 				 (1 << ADIF) | (1 << ADIE) |
@@ -89,17 +156,15 @@ static void adc_configure(bool enable)
 			 * for Vbg settling time (1 ms). */
 			adc.delay = 10;
 		} else if (!battery_voltage_is_critical()) {
-			if (IS_ATMEGAx8) {
-				/* Ref = Vcc; in = ADC2/PC2; Right adjust */
-				ADMUX = (0 << REFS1) | (1 << REFS0) |
-					(0 << ADLAR) | ADC0_MUX;
-			} else {
-				/* Ref = Vcc; in = ADC2/PB4; Right adjust */
-				ADMUX = (0 << REFS2) | (0 << REFS1) | (0 << REFS0) |
-					(0 << ADLAR) | ADC0_MUX;
-			}
-			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
-			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
+			/* Configure the MUX to the active input ADC. */
+			adc_configure_mux(ADC_MUXMODE_NORM, adc.index);
+			/* Enable free running mode in single-ADC mode. */
+			if (NR_ADC <= 1u)
+				auto_trigger = (1 << ADATE);
+			else
+				auto_trigger = 0u;
+			/* Enable and start ADC; PS = 64; IRQ enabled */
+			ADCSRA = (1 << ADEN) | (1 << ADSC) | auto_trigger |
 				 (1 << ADIF) | (1 << ADIE) |
 				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
 		} else {
@@ -107,22 +172,6 @@ static void adc_configure(bool enable)
 			 * has been requested.
 			 * Keep the ADC shut down. */
 		}
-	}
-}
-
-/* Returns true, if a battery measurement conversion is currently running. */
-bool adc_battery_measurement_running(void)
-{
-	return adc.battery_meas && USE_BAT_MONITOR;
-}
-
-/* Request a measurement of the battery voltage.
- * Interrupts must be disabled before calling this function. */
-void adc_request_battery_measurement(void)
-{
-	if (USE_BAT_MONITOR) {
-		adc.battery_meas = true;
-		adc_configure(true);
 	}
 }
 
@@ -134,8 +183,11 @@ ISR(ADC_vect)
 	uint16_t filt_setpoint;
 	uint16_t vcc_mv;
 	uint8_t pwm_count;
+	uint8_t index;
 	uint8_t i;
 	bool pwm_collision;
+	bool allow_standby;
+	bool go_standby;
 
 	memory_barrier();
 
@@ -155,7 +207,7 @@ ISR(ADC_vect)
 	/* Read the analog input */
 	raw_adc = ADC;
 
-	if (adc_battery_measurement_running()) {
+	if (USE_BAT_MONITOR && adc.battery_meas_running) {
 		/* Battery voltage measurement mode. */
 
 		if (adc.delay == 0u) {
@@ -187,7 +239,7 @@ ISR(ADC_vect)
 			 * Turn off battery measurement mode and
 			 * return to normal ADC operation mode
 			 * (if battery voltage is not critical). */
-			adc.battery_meas = false;
+			adc.battery_meas_running = false;
 			adc_configure(true);
 		} else {
 			/* VRef/Vbg is not stable, yet.
@@ -195,36 +247,73 @@ ISR(ADC_vect)
 			adc.delay--;
 			irq_disable();
 		}
-	} else if (!pwm_collision) {
-		/* Normal operation mode.
-		 * Discard this measurement, if an IRQ controlled
-		 * PWM output actuation happened during the measurement. */
+	} else {
+		if (pwm_collision) {
+			/* An IRQ controlled PWM output actuation happened
+			 * during the measurement.
+			 * Discard this measurement. */
+			irq_disable();
+			allow_standby = false;
+		} else {
+			/* Normal operation mode. */
 
-		if (ADC_INVERT)
-			raw_adc = ADC_MAX - raw_adc;
+			if (ADC_INVERT)
+				raw_adc = ADC_MAX - raw_adc;
 
-		/* Transform the value according to the transformation curve. */
-		raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
-						 ARRAY_SIZE(adc2sp_transformation_curve),
-						 raw_adc);
+			/* Transform the value according to the transformation curve. */
+			raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
+							 ARRAY_SIZE(adc2sp_transformation_curve),
+							 raw_adc);
 
-		/* Filter the setpoint value. */
-		filt_setpoint = lp_filter_run(&adc.filter,
-					      ADC_FILTER_SHIFT,
-					      raw_setpoint);
+			index = (NR_ADC > 1u) ? adc.index : 0u;
 
-		/* Globally disable interrupts.
-		 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
-		irq_disable();
+			/* Filter the setpoint value. */
+			filt_setpoint = lp_filter_run(&adc.filter[index],
+						      ADC_FILTER_SHIFT,
+						      raw_setpoint);
 
-		/* Change the output signal (PWM). */
-		output_setpoint(IF_RGB(adc.index,)
-				filt_setpoint);
+			/* This channel is ready for standby, if idle. */
+			if (USE_DEEP_SLEEP)
+				adc.standby_ready[index] = (raw_setpoint == 0u);
 
-//TODO next ADC
-		if (USE_DEEP_SLEEP) {
+			/* Globally disable interrupts.
+			 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
+			irq_disable();
+
+			/* Change the output signal (PWM). */
+			output_setpoint(IF_RGB(index,)
+					filt_setpoint);
+
+			/* Increment index to the next ADC. */
+			if (NR_ADC > 1u) {
+				if (++adc.index >= NR_ADC)
+					adc.index = 0u;
+			}
+
+			allow_standby = true;
+		}
+
+		if (USE_BAT_MONITOR && adc.battery_meas_requested) {
+			/* Battery measurement requested.
+			 * Reconfigure the ADC for battery measurement. */
+			adc_configure(true);
+		} else {
+			/* Switch MUX to the next ADC
+			 * and trigger next conversion. */
+			if (NR_ADC > 1u) {
+				adc_configure_mux(ADC_MUXMODE_NORM, adc.index);
+				ADCSRA |= (1 << ADSC);
+			} else {
+				/* Free running mode is enabled. */
+			}
+
 			/* If the PWM is disabled, request deep sleep to save power. */
-			system_set_standby(raw_setpoint == 0u);
+			if (USE_DEEP_SLEEP && adc.index == 0u) {
+				go_standby = allow_standby;
+				for (i = 0u; i < NR_ADC; i++)
+					go_standby &= adc.standby_ready[i];
+				system_set_standby(go_standby);
+			}
 		}
 	}
 
@@ -235,7 +324,8 @@ ISR(ADC_vect)
 
 	/* Re-enable the ADC interrupt. */
 	ADCSRA |= (1u << ADIE);
-	ADCSRA |= (1u << ADIF);
+	if (NR_ADC <= 1u)
+		ADCSRA |= (1u << ADIF);
 
 	memory_barrier();
 }
@@ -244,7 +334,10 @@ ISR(ADC_vect)
  * Interrupts must be disabled before calling this function. */
 void adc_init(bool enable)
 {
-	lp_filter_reset(&adc.filter);
+	uint8_t i;
+
+	for (i = 0u; i < NR_ADC; i++)
+		lp_filter_reset(&adc.filter[i]);
 	adc.prev_pwm_count = pwm_get_irq_count();
 	memory_barrier();
 
