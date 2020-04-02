@@ -43,75 +43,47 @@
 #define PWM_HW_MODE		2u /* Hardware-PWM mode */
 
 /* Output ports. */
-#if IS_ATMEGAx8
+#if NR_PWM == 3u
 # define PWM_TIM0_PORT		PORTD
 # define PWM_TIM0_PORTBIT	PD6
-#else
+# define PWM_TIM1_PORT		PORTB
+# define PWM_TIM1_PORTBIT	PB1
+# define PWM_TIM2_PORT		PORTB
+# define PWM_TIM2_PORTBIT	PB3
+#elif NR_PWM == 1u
 # define PWM_TIM0_PORT		PORTB
 # define PWM_TIM0_PORTBIT	PB0
+# define PWM_TIM1_PORT		PWM_TIM0_PORT		/* dummy */
+# define PWM_TIM1_PORTBIT	PWM_TIM0_PORTBIT	/* dummy */
+# define PWM_TIM2_PORT		PWM_TIM0_PORT		/* dummy */
+# define PWM_TIM2_PORTBIT	PWM_TIM0_PORTBIT	/* dummy */
+#else
+# error
 #endif
 
-
-static struct {
-	uint8_t active_mode[NR_PWM];
-	uint16_t active_setpoint[NR_PWM];
-	uint8_t irq_count;
-} pwm;
-
-
 #if PWM_INVERT
-# define ASM_PWM_OUT_HIGH	"cbi %[_OUT_PORT], %[_OUT_BIT] \n"
-# define ASM_PWM_OUT_LOW	"sbi %[_OUT_PORT], %[_OUT_BIT] \n"
+# define ASM_PWM0_OUT_HIGH	"cbi %[_OUT0_PORT], %[_OUT0_BIT] \n"
+# define ASM_PWM0_OUT_LOW	"sbi %[_OUT0_PORT], %[_OUT0_BIT] \n"
+# define ASM_PWM1_OUT_HIGH	"cbi %[_OUT1_PORT], %[_OUT1_BIT] \n"
+# define ASM_PWM1_OUT_LOW	"sbi %[_OUT1_PORT], %[_OUT1_BIT] \n"
+# define ASM_PWM2_OUT_HIGH	"cbi %[_OUT2_PORT], %[_OUT2_BIT] \n"
+# define ASM_PWM2_OUT_LOW	"sbi %[_OUT2_PORT], %[_OUT2_BIT] \n"
 #else
-# define ASM_PWM_OUT_HIGH	"sbi %[_OUT_PORT], %[_OUT_BIT] \n"
-# define ASM_PWM_OUT_LOW	"cbi %[_OUT_PORT], %[_OUT_BIT] \n"
+# define ASM_PWM0_OUT_HIGH	"sbi %[_OUT0_PORT], %[_OUT0_BIT] \n"
+# define ASM_PWM0_OUT_LOW	"cbi %[_OUT0_PORT], %[_OUT0_BIT] \n"
+# define ASM_PWM1_OUT_HIGH	"sbi %[_OUT1_PORT], %[_OUT1_BIT] \n"
+# define ASM_PWM1_OUT_LOW	"cbi %[_OUT1_PORT], %[_OUT1_BIT] \n"
+# define ASM_PWM2_OUT_HIGH	"sbi %[_OUT2_PORT], %[_OUT2_BIT] \n"
+# define ASM_PWM2_OUT_LOW	"cbi %[_OUT2_PORT], %[_OUT2_BIT] \n"
 #endif
 
 #define ASM_INPUTS						\
-	[_OUT_PORT]	"I" (_SFR_IO_ADDR(PWM_TIM0_PORT)),	\
-	[_OUT_BIT]	"M" (PWM_TIM0_PORTBIT)
-
-
-
-/* Get the interrupt count. */
-uint8_t pwm_get_irq_count(void)
-{
-	uint8_t count;
-
-	memory_barrier();
-	count = pwm.irq_count;
-	memory_barrier();
-
-	return count;
-}
-
-/* Set the PWM output port state. */
-static void port_out_set(bool high)
-{
-	if (high ^ PWM_INVERT)
-		PWM_TIM0_PORT |= (1u << PWM_TIM0_PORTBIT);
-	else
-		PWM_TIM0_PORT &= (uint8_t)~(1u << PWM_TIM0_PORTBIT);
-}
-
-/* Shutdown the PWM and the output. */
-static void pwm_turn_off(void)
-{
-	uint8_t i;
-
-	/* Stop timer. */
-	TCCR0B = 0u;
-	TCCR0A = 0u;
-
-	/* Set output to idle state. */
-	port_out_set(false);
-
-	memory_barrier();
-	for (i = 0u; i < NR_PWM; i++) {
-		pwm.active_mode[i] = PWM_UNKNOWN_MODE;
-		pwm.active_setpoint[i] = 0u;
-	}
-}
+	[_OUT0_PORT]	"I" (_SFR_IO_ADDR(PWM_TIM0_PORT)),	\
+	[_OUT0_BIT]	"M" (PWM_TIM0_PORTBIT),			\
+	[_OUT1_PORT]	"I" (_SFR_IO_ADDR(PWM_TIM1_PORT)),	\
+	[_OUT1_BIT]	"M" (PWM_TIM1_PORTBIT),			\
+	[_OUT2_PORT]	"I" (_SFR_IO_ADDR(PWM_TIM2_PORT)),	\
+	[_OUT2_BIT]	"M" (PWM_TIM2_PORTBIT)
 
 /* In high resolution mode TIM0_OVF_vect triggers with a frequency of:
  *   F_CPU / (256    *    256)
@@ -124,89 +96,303 @@ static void pwm_turn_off(void)
 #define PWM_SP_TO_CPU_CYC_MUL	1u /* Setpoint to cycle multiplicator */
 #define PWM_SP_TO_CPU_CYC_DIV	1u /* Setpoint to cycle divisor */
 
-/* PWM low frequency / high resolution software interrupt handler */
-ISR(TIM0_OVF_vect)
+
+static struct {
+	uint8_t active_mode[NR_PWM];
+	uint16_t active_setpoint[NR_PWM];
+	uint8_t irq_count;
+} pwm;
+
+
+/* Set a hardware pin to the specified state. */
+static inline void pwm_hw_pin_set(uint8_t index, bool set)
 {
-	uint16_t delay_count;
-	uint32_t tmp;
-
-	/* Calculate the duty-cycle-high time duration.
-	 * The calculated value is a CPU delay loop value and thus
-	 * depends on the CPU frequency. */
-	memory_barrier();
-	tmp = pwm.active_setpoint[0];
-	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
-	delay_count = lim_u16(tmp);
-
-	port_out_set(false);
-
-	/* Switch the PWM output high, then delay, then switch the output low.
-	 * (It it Ok to delay for a short time in this interrupt). */
-	if (delay_count == 1u) {
-		/* 1 clock delay */
-
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_HIGH
-			ASM_PWM_OUT_LOW
-		: : ASM_INPUTS
-		: );
-#if SMALL_DEVICE
-	} else if (delay_count == 2u || delay_count == 3u) {
-#else
-	} else if (delay_count == 2u) {
+	switch (index) {
+#if NR_PWM >= 1
+	case 0u:
+		if (set)
+			PWM_TIM0_PORT |= (1u << PWM_TIM0_PORTBIT);
+		else
+			PWM_TIM0_PORT &= (uint8_t)~(1u << PWM_TIM0_PORTBIT);
+		break;
 #endif
-		/* 2 clocks delay */
+#if NR_PWM >= 2
+	case 1u:
+		if (set)
+			PWM_TIM1_PORT |= (1u << PWM_TIM1_PORTBIT);
+		else
+			PWM_TIM1_PORT &= (uint8_t)~(1u << PWM_TIM1_PORTBIT);
+		break;
+#endif
+#if NR_PWM >= 3
+	case 2u:
+		if (set)
+			PWM_TIM2_PORT |= (1u << PWM_TIM2_PORTBIT);
+		else
+			PWM_TIM2_PORT &= (uint8_t)~(1u << PWM_TIM2_PORTBIT);
+		break;
+#endif
+	}
+}
 
-		__asm__ __volatile__ (
-			ASM_PWM_OUT_HIGH
-		"	nop			\n"
-			ASM_PWM_OUT_LOW
-		: : ASM_INPUTS
-		: );
-#if !SMALL_DEVICE
-	} else if (delay_count / 3u <= 0xFFu) {
-		/* 3 clocks per loop iteration
-		 * -> divide count */
-		uint8_t delay_count8 = (uint8_t)(delay_count / 3u);
+/* Set the hardware duty cycle. */
+static inline void pwm_hw_set_duty(uint8_t index, uint8_t pwm_duty)
+{
+	switch (index) {
+#if NR_PWM >= 1
+	case 0u:
+		OCR0A = pwm_duty;
+		break;
+#endif
+#if NR_PWM >= 2
+	case 1u:
+		OCR1A = pwm_duty;
+		break;
+#endif
+#if NR_PWM >= 3
+	case 2u:
+		OCR2A = pwm_duty;
+		break;
+#endif
+	}
+}
 
-		if (delay_count > 0u) {
-			__asm__ __volatile__ (
-				ASM_PWM_OUT_HIGH
-			"1:	dec %[_delay_count8]	\n"
-			"	brne 1b			\n"
-				ASM_PWM_OUT_LOW
-			: [_delay_count8] "=d" (delay_count8)
-			:                 "0" (delay_count8),
-			  ASM_INPUTS
-			: );
+/* Reset the timer count register. */
+static inline void pwm_hw_count_reset(uint8_t index)
+{
+	switch (index) {
+#if NR_PWM >= 1
+	case 0u:
+		TCNT0 = PWM_INVERT ? 0u : 0xFFu;
+		break;
+#endif
+#if NR_PWM >= 2
+	case 1u:
+		TCNT1 = PWM_INVERT ? 0u : 0xFFu;
+		break;
+#endif
+#if NR_PWM >= 3
+	case 2u:
+		TCNT2 = PWM_INVERT ? 0u : 0xFFu;
+		break;
+#endif
+	}
+}
+
+/* Clear the IRQ flag hardware register bit. */
+static inline void pwm_hw_clear_irq_flag(uint8_t index)
+{
+	switch (index) {
+#if NR_PWM >= 1
+	case 0u:
+		TIFR0 = (1u << TOV0);
+		break;
+#endif
+#if NR_PWM >= 2
+	case 1u:
+		TIFR1 = (1u << TOV1);
+		break;
+#endif
+#if NR_PWM >= 3
+	case 2u:
+		TIFR2 = (1u << TOV2);
+		break;
+#endif
+	}
+}
+
+/* Stop the timer hardware. */
+static inline void pwm_hw_stop_timer(uint8_t index)
+{
+	switch (index) {
+#if NR_PWM >= 1
+	case 0u:
+		TCCR0B = 0u;
+		break;
+#endif
+#if NR_PWM >= 2
+	case 1u:
+		TCCR1B = 0u;
+		break;
+#endif
+#if NR_PWM >= 3
+	case 2u:
+		TCCR2B = 0u;
+		break;
+#endif
+	}
+}
+
+/* Set hardware driver mode. */
+static inline void pwm_hw_set_hardware_driven(uint8_t index, bool hw_driven)
+{
+	switch (index) {
+#if NR_PWM >= 1
+	case 0u:
+		if (hw_driven) {
+			TCCR0A = (1u << COM0A1) | (1u << COM0A0) |
+				 (0u << COM0B1) | (0u << COM0B0) |
+				 (1u << WGM01) | (1u << WGM00);
+		} else {
+			TCCR0A = (0u << COM0A1) | (0u << COM0A0) |
+				 (0u << COM0B1) | (0u << COM0B0) |
+				 (1u << WGM01) | (1u << WGM00);
 		}
-#endif /* !SMALL_DEVICE */
-	} else {
-		/* 4 clocks per loop iteration
-		 * -> divide count */
-		delay_count /= 4u;
+		break;
+#endif
+#if NR_PWM >= 2
+	case 1u:
+		if (hw_driven) {
+			TCCR1A = (1u << COM1A1) | (1u << COM1A0) |
+				 (0u << COM1B1) | (0u << COM1B0) |
+				 (0u << WGM11) | (1u << WGM10);
+		} else {
+			TCCR1A = (0u << COM1A1) | (0u << COM1A0) |
+				 (0u << COM1B1) | (0u << COM1B0) |
+				 (0u << WGM11) | (1u << WGM10);
+		}
+		break;
+#endif
+#if NR_PWM >= 3
+	case 2u:
+		if (hw_driven) {
+			TCCR2A = (1u << COM2A1) | (1u << COM2A0) |
+				 (0u << COM2B1) | (0u << COM2B0) |
+				 (1u << WGM21) | (1u << WGM20);
+		} else {
+			TCCR2A = (0u << COM2A1) | (0u << COM2A0) |
+				 (0u << COM2B1) | (0u << COM2B0) |
+				 (1u << WGM21) | (1u << WGM20);
+		}
+		break;
+#endif
+	}
+}
 
-		if (delay_count > 0u) {
-			__asm__ __volatile__ (
-				ASM_PWM_OUT_HIGH
-			"1:	sbiw %[_delay_count], 1	\n"
-			"	brne 1b			\n"
-				ASM_PWM_OUT_LOW
-			: [_delay_count] "=w" (delay_count)
-			:                "0" (delay_count),
-			  ASM_INPUTS
-			: );
+/* Set IRQ mode or HW mode. */
+static inline void pwm_hw_set_operation_mode(uint8_t index, uint8_t mode)
+{
+	/* Reset the timer counter. */
+	pwm_hw_count_reset(index);
+
+	if (mode == PWM_IRQ_MODE) {
+		switch (index) {
+#if NR_PWM >= 1
+		case 0u:
+			/* Slow clock (PS=256) */
+			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |
+				 (0u << WGM02) |
+				 (1u << CS02) | (0u << CS01) | (0u << CS00);
+
+			/* Enable the TIM0_OVF interrupt. */
+			TIMSK0 |= (1u << TOIE0);
+			break;
+#endif
+#if NR_PWM >= 2
+		case 1u:
+			/* Slow clock (PS=256) */
+			TCCR1C = (0u << FOC1A) | (0u << FOC1B);
+			TCCR1B = (0u << ICNC1) | (0u << ICES1) |
+				 (0u << WGM13) | (1u << WGM12) |
+				 (1u << CS12) | (0u << CS11) | (0u << CS10);
+
+			/* Enable the TIM1_OVF interrupt. */
+			TIMSK1 |= (1u << TOIE1);
+			break;
+#endif
+#if NR_PWM >= 3
+		case 2u:
+			/* Slow clock (PS=256) */
+			TCCR2B = (0u << FOC2A) | (0u << FOC2B) |
+				 (0u << WGM22) |
+				 (1u << CS22) | (1u << CS21) | (0u << CS20);
+
+			/* Enable the TIM2_OVF interrupt. */
+			TIMSK2 |= (1u << TOIE2);
+			break;
+#endif
+		}
+	} else {
+		switch (index) {
+#if NR_PWM >= 1
+		case 0u:
+			/* Fast clock (PS=1) */
+			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |
+				 (0u << WGM02) |
+				 (0u << CS02) | (0u << CS01) | (1u << CS00);
+
+			/* Disable the TIM0_OVF interrupt. */
+			TIMSK0 &= (uint8_t)~(1u << TOIE0);
+			break;
+#endif
+#if NR_PWM >= 2
+		case 1u:
+			/* Fast clock (PS=1) */
+			TCCR1C = (0u << FOC1A) | (0u << FOC1B);
+			TCCR1B = (0u << ICNC1) | (0u << ICES1) |
+				 (0u << WGM13) | (1u << WGM12) |
+				 (0u << CS12) | (0u << CS11) | (1u << CS10);
+
+			/* Disable the TIM1_OVF interrupt. */
+			TIMSK1 &= (uint8_t)~(1u << TOIE1);
+			break;
+#endif
+#if NR_PWM >= 3
+		case 2u:
+			/* Fast clock (PS=1) */
+			TCCR2B = (0u << FOC2A) | (0u << FOC2B) |
+				 (0u << WGM22) |
+				 (0u << CS22) | (0u << CS21) | (1u << CS20);
+
+			/* Disable the TIM2_OVF interrupt. */
+			TIMSK2 &= (uint8_t)~(1u << TOIE2);
+			break;
+#endif
 		}
 	}
 
-	pwm.irq_count++;
+	/* Clear the interrupt flag. */
+	pwm_hw_clear_irq_flag(index);
+}
 
-	/* We don't want to re-trigger right now,
-	 * just in case the delay took long.
-	 * Clear the interrupt flag. */
-	TIFR = (1u << TOV0);
+/* Set the PWM output port state. */
+static inline void port_out_set(uint8_t index, bool high)
+{
+	if (high ^ PWM_INVERT)
+		pwm_hw_pin_set(index, true);
+	else
+		pwm_hw_pin_set(index, false);
+}
+
+/* Shutdown the PWM and all outputs. */
+static void pwm_turn_off_all(void)
+{
+	uint8_t i;
+
+	for (i = 0u; i < NR_PWM; i++) {
+		/* Stop timer. */
+		pwm_hw_stop_timer(i);
+		pwm_hw_set_hardware_driven(i, false);
+
+		/* Set output to idle state. */
+		port_out_set(i, false);
+
+		memory_barrier();
+		pwm.active_mode[i] = PWM_UNKNOWN_MODE;
+		pwm.active_setpoint[i] = 0u;
+	}
+}
+
+/* Get the interrupt count. */
+uint8_t pwm_get_irq_count(void)
+{
+	uint8_t count;
 
 	memory_barrier();
+	count = pwm.irq_count;
+	memory_barrier();
+
+	return count;
 }
 
 /* Set the PWM setpoint.
@@ -221,7 +407,7 @@ void pwm_sp_set(IF_RGB(uint8_t index,) uint16_t setpoint)
 	if (battery_voltage_is_critical()) {
 
 		/* The battery is not Ok. Turn off all outputs. */
-		pwm_turn_off();
+		pwm_turn_off_all();
 
 	} else {
 		/* Determine the mode.
@@ -260,60 +446,34 @@ void pwm_sp_set(IF_RGB(uint8_t index,) uint16_t setpoint)
 
 		if (mode != pwm.active_mode[index]) {
 			/* Mode changed. Disable the timer before reconfiguring. */
-			TCCR0B = 0u;
+			pwm_hw_stop_timer(index);
 		}
 
 		if (mode == PWM_IRQ_MODE || pwm_duty == PWM_MIN) {
 			/* In interrupt mode or if the duty cycle is zero,
 			 * do not drive the output pin by hardware. */
-			TCCR0A = (0u << COM0A1) | (0u << COM0A0) |\
-				 (0u << COM0B1) | (0u << COM0B0) |\
-				 (1u << WGM01) | (1u << WGM00);
+			pwm_hw_set_hardware_driven(index, false);
 		} else {
 			/* Drive the output pin by hardware. */
-			TCCR0A = (1u << COM0A1) | (1u << COM0A0) |\
-				 (0u << COM0B1) | (0u << COM0B0) |\
-				 (1u << WGM01) | (1u << WGM00);
+			pwm_hw_set_hardware_driven(index, true);
 		}
 
 		if (mode == PWM_HW_MODE) {
 			/* Set the duty cycle in hardware. */
 			if (pwm_duty == PWM_MIN) {
 				/* Zero duty cycle. Set HW pin directly. */
-				PWM_TIM0_PORT |= (1u << PWM_TIM0_PORTBIT);
+				pwm_hw_pin_set(index, true);
 			} else {
 				/* Non-zero duty cycle. Use timer to drive pin. */
-				OCR0A = pwm_duty;
+				pwm_hw_set_duty(index, pwm_duty);
 			}
 		}
 
 		if (mode != pwm.active_mode[index]) {
 			pwm.active_mode[index] = mode;
 
-			/* Reset the timer counter. */
-			TCNT0 = PWM_INVERT ? 0u : 0xFFu;
-
 			/* Set the clock prescaler (fast or slow). */
-			if (mode == PWM_IRQ_MODE) {
-				/* Slow clock (PS=256) */
-				TCCR0B = (0u << FOC0A) | (0u << FOC0B) |
-					 (0u << WGM02) |
-					 (1u << CS02) | (0u << CS01) | (0u << CS00);
-
-				/* Enable the TIM0_OVF interrupt. */
-				TIMSK |= (1u << TOIE0);
-			} else {
-				/* Fast clock (PS=1) */
-				TCCR0B = (0u << FOC0A) | (0u << FOC0B) |
-					 (0u << WGM02) |
-					 (0u << CS02) | (0u << CS01) | (1u << CS00);
-
-				/* Disable the TIM0_OVF interrupt. */
-				TIMSK &= (uint8_t)~(1u << TOIE0);
-			}
-
-			/* Clear the interrupt flag. */
-			TIFR = (1u << TOV0);
+			pwm_hw_set_operation_mode(index, mode);
 		}
 	}
 }
@@ -338,14 +498,25 @@ void pwm_init(bool enable)
 {
 	uint8_t i;
 
-	/* Reset mode. */
-	for (i = 0u; i < NR_PWM; i++)
+	for (i = 0u; i < NR_PWM; i++) {
+		/* Reset mode. */
 		pwm.active_mode[i] = PWM_UNKNOWN_MODE;
+	}
 
 	/* Initialize output. */
 	if (enable) {
 		for (i = 0u; i < NR_PWM; i++)
 			pwm_sp_set(IF_RGB(i,) 0u);
 	} else
-		pwm_turn_off();
+		pwm_turn_off_all();
 }
+
+#if NR_PWM >= 1
+# include "pwm0_isr.c"
+#endif
+#if NR_PWM >= 2
+# include "pwm1_isr.c"
+#endif
+#if NR_PWM >= 3
+# include "pwm2_isr.c"
+#endif

@@ -92,18 +92,18 @@ static void ports_init(void)
 	const uint8_t D = (USE_MAINLOOPDBG ? 1 : 0);
 
 	/* PB0 = input / pullup
-	 * PB1 = input / pullup
+	 * PB1 = output
 	 * PB2 = input / pullup
-	 * PB3 = input / pullup
+	 * PB3 = output
 	 * PB4 = input / pullup
 	 * PB5 = input / pullup
 	 * PB6 = input / pullup
 	 * PB7 = output / high if USE_MAINLOOPDBG else input / pullup
 	 */
 	DDRB =  (D << DDB7) | (0 << DDB6) | (0 << DDB5) | (0 << DDB4) |
-	        (0 << DDB3) | (0 << DDB2) | (0 << DDB1) | (0 << DDB0);
+	        (1 << DDB3) | (0 << DDB2) | (1 << DDB1) | (0 << DDB0);
 	PORTB = (1 << PB7) | (1 << PB6)  | (1 << PB5)  | (1 << PB4) |
-	        (1 << PB3)  | (1 << PB2)  | (1 << PB1)  | (1 << PB0);
+	        (P << PB3)  | (1 << PB2)  | (P << PB1)  | (1 << PB0);
 	/* PC0 = input / no pullup
 	 * PC1 = input / no pullup
 	 * PC2 = input / no pullup
@@ -153,7 +153,13 @@ static void set_PRR(bool full_powerdown)
 		PRR = (uint8_t)(0xFFu);
 	} else {
 		PRR = (uint8_t)(0xFFu
-# ifdef PRTIM0
+# if defined(PRTIM2) && NR_PWM >= 3
+		^ (1u << PRTIM2) /* enable timer 2 */
+# endif
+# if defined(PRTIM1) && NR_PWM >= 2
+		^ (1u << PRTIM1) /* enable timer 1 */
+# endif
+# if defined(PRTIM0) && NR_PWM >= 1
 		^ (1u << PRTIM0) /* enable timer 0 */
 # endif
 # ifdef PRADC

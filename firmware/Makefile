@@ -119,7 +119,7 @@ CFLAGS			:= -DPWM_LIM="$(PWM_LIM)" \
 LDFLAGS			:=
 
 # Additional "clean" and "distclean" target files
-CLEAN_FILES		:=
+CLEAN_FILES		:= pwm0_isr.c pwm1_isr.c pwm2_isr.c
 DISTCLEAN_FILES		:=
 
 
@@ -136,3 +136,14 @@ $(error "DEV=$(DEV) is not supported.")
 endif
 
 include avrmakelib.mk
+
+pwm.c: pwm0_isr.c pwm1_isr.c pwm2_isr.c
+
+pwm0_isr.c: pwm_isr_template.c
+	$(QUIET_SED) -e 's/%INDEX%/0/g' -e 's/%HEADER%/THIS IS A GENERATED FILE/g' $< > $@
+
+pwm1_isr.c: pwm_isr_template.c
+	$(QUIET_SED) -e 's/%INDEX%/1/g' -e 's/%HEADER%/THIS IS A GENERATED FILE/g' $< > $@
+
+pwm2_isr.c: pwm_isr_template.c
+	$(QUIET_SED) -e 's/%INDEX%/2/g' -e 's/%HEADER%/THIS IS A GENERATED FILE/g' $< > $@

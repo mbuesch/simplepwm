@@ -9,11 +9,11 @@
 #include <util/delay.h>
 
 
-#ifndef TIFR
-# define TIFR	TIFR0
+#ifndef TIFR0
+# define TIFR0	TIFR
 #endif
-#ifndef TIMSK
-# define TIMSK	TIMSK0
+#ifndef TIMSK0
+# define TIMSK0	TIMSK
 #endif
 #ifndef WDIE
 # define WDIE	WDTIE
@@ -33,8 +33,8 @@
 #ifndef WDTCR
 # define WDTCR	WDTCSR
 #endif
-#ifndef TIM0_OVF_vect
-# define TIM0_OVF_vect TIMER0_OVF_vect
+#ifndef TIMER0_OVF_vect
+# define TIMER0_OVF_vect TIM0_OVF_vect
 #endif
 
 
