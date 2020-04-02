@@ -1,7 +1,7 @@
 ######################################################
 # AVR make library                                   #
 # Copyright (c) 2015-2020 Michael Buesch <m@bues.ch> #
-# Version 1.11                                       #
+# Version 1.12                                       #
 ######################################################
 
 ifeq ($(NAME),)
@@ -33,6 +33,7 @@ MKDIR			:= mkdir
 MV			:= mv
 RM			:= rm
 CP			:= cp
+SED			:= sed
 ECHO			:= echo
 GREP			:= grep
 TRUE			:= true
@@ -64,6 +65,7 @@ QUIET_SIZE		= $(Q:@=@$(ECHO) '     SIZE     '$@;)$(SIZE)
 QUIET_PYTHON2		= $(Q:@=@$(ECHO) '     PYTHON2  '$@;)$(PYTHON2)
 QUIET_PYTHON3		= $(Q:@=@$(ECHO) '     PYTHON3  '$@;)$(PYTHON3)
 QUIET_RM		= $(Q:@=@$(ECHO) '     RM       '$@;)$(RM)
+QUIET_SED		= $(Q:@=@$(ECHO) '     SED      '$@;)$(SED)
 ifeq ($(C),1)
 QUIET_SPARSE		= $(Q:@=@$(ECHO) '     SPARSE   '$@;)$(SPARSE)
 else
