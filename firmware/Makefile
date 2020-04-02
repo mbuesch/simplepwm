@@ -23,6 +23,8 @@ ADC_INVERT		:= 0
 ##############################################################################
 ##############################################################################
 
+$(info DEV=$(DEV) PWM_LIM=$(PWM_LIM) PWM_INVERT=$(PWM_INVERT) ADC_INVERT=$(ADC_INVERT))
+
 # Project name
 NAME			:= simplepwm
 
