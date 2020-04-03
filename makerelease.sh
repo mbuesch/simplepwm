@@ -47,9 +47,9 @@ do_build()
 hook_pre_archives()
 {
 	# Build the hex files.
-	for dev in t13 t25 t45 t85; do
+	for dev in t13 t25 t45 t85 m88p m328p; do
 		local fwdir="$2/firmware"
-		local targetdir="$2/hex/$(echo "$dev" | sed -e 's/t/attiny/')"
+		local targetdir="$2/hex/$(echo "$dev" | sed -e 's/t/attiny/' -e 's/m/atmega/')"
 
 		do_build "$fwdir" "$targetdir" DEV=$dev
 	done

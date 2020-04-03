@@ -38,7 +38,7 @@ static struct {
 
 
 #if SMALL_DEVICE
-# warning "Deep sleep and battery monitoring disabled on small microcontroller (t13)."
+# warning "Deep sleep and battery monitoring disabled on small microcontroller (t13/t25)."
 #endif
 
 

@@ -19,7 +19,7 @@
 
 /* If this is a small device with small flash size,
  * set SMALL_DEVICE to 1. */
-#ifdef __AVR_ATtiny13__
+#if defined(__AVR_ATtiny13__) || defined(__AVR_ATtiny25__)
 # define SMALL_DEVICE		1
 #else
 # define SMALL_DEVICE		0

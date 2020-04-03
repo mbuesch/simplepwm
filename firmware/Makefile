@@ -2,11 +2,11 @@
 
 # Target device. May be one of:
 #	t13	=> ATTiny13 with reduced feature set.
-#	t25	=> ATTiny25 with full feature set.
-#	t45	=> ATTiny45 with full feature set.
-#	t85	=> ATTiny85 with full feature set.
-#	m88p	=> ATMega88P with full feature set.
-#	m328p	=> ATMega328P with full feature set.
+#	t25	=> ATTiny25 with reduced feature set.
+#	t45	=> ATTiny45 with full feature set for one PWM.
+#	t85	=> ATTiny85 with full feature set for one PWM.
+#	m88p	=> ATMega88P with full feature set for three PWM (RGB).
+#	m328p	=> ATMega328P with full feature set for three PWM (RGB).
 DEV			:= t85
 
 # Limit the maximum PWM duty cycle to this percentage:
