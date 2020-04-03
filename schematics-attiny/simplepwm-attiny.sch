@@ -18,7 +18,7 @@ L MCU_Microchip_ATtiny:ATtiny85-20PU U1
 U 1 1 5E14CBD3
 P 3650 4200
 F 0 "U1" H 3121 4246 50  0000 R CNN
-F 1 "ATtiny85-20PU (or ATtiny13-20PU)" H 3121 4155 50  0000 R CNN
+F 1 "ATtinyXX-20PU" H 3121 4155 50  0000 R CNN
 F 2 "Package_DIP:DIP-8_W7.62mm" H 3650 4200 50  0001 C CIN
 F 3 "http://ww1.microchip.com/downloads/en/DeviceDoc/atmel-2586-avr-8-bit-microcontroller-attiny25-attiny45-attiny85_datasheet.pdf" H 3650 4200 50  0001 C CNN
 	1    3650 4200
@@ -281,4 +281,6 @@ Wire Wire Line
 	6600 4200 4250 4200
 Wire Wire Line
 	6250 4300 4250 4300
+Text Notes 2550 4650 0    50   ~ 0
+ATtiny13\nATtiny25\nATtiny45\nATtiny85
 $EndSCHEMATC
