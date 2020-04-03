@@ -57,11 +57,11 @@ static struct {
  * Interrupts shall be disabled before calling this function. */
 void output_setpoint(IF_RGB(uint8_t index,) uint16_t setpoint)
 {
-	/* Tell battery management about the new setpoint. */
-	battery_update_setpoint(IF_RGB(index,) setpoint);
-
 	/* Set the PWM output signal. */
 	pwm_sp_set(IF_RGB(index,) setpoint);
+
+	/* Tell battery management about the new setpoint. */
+	battery_update_setpoint(IF_RGB(index,) setpoint);
 }
 
 /* If standby, enter deep sleep in the next main loop iteration.

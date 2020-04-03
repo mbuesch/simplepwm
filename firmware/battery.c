@@ -74,16 +74,23 @@ void set_battery_mon_interval(uint16_t seconds)
  * Interrupts shall be disabled before calling this function. */
 void battery_update_setpoint(IF_RGB(uint8_t index,) uint16_t setpoint)
 {
-	//TODO index
+	uint8_t i;
+	bool any_sp_nonzero;
 
-	/* Reconfigure the battery measurement interval. */
-	if (battery_voltage_is_critical()) {
-		set_battery_mon_interval(BAT_INT_CRIT);
-	} else {
-		if (setpoint == 0u)
-			set_battery_mon_interval(BAT_INT_OFF);
-		else
-			set_battery_mon_interval(BAT_INT_ON);
+	if (USE_BAT_MONITOR) {
+		/* Reconfigure the battery measurement interval. */
+		if (battery_voltage_is_critical()) {
+			set_battery_mon_interval(BAT_INT_CRIT);
+		} else {
+			any_sp_nonzero = false;
+			for (i = 0u; i < NR_PWM; i++)
+				any_sp_nonzero |= pwm_sp_get(IF_RGB(i)) > 0u;
+
+			if (any_sp_nonzero)
+				set_battery_mon_interval(BAT_INT_ON);
+			else
+				set_battery_mon_interval(BAT_INT_OFF);
+		}
 	}
 }
 
@@ -102,6 +109,7 @@ void evaluate_battery_voltage(uint16_t vcc_mv)
 	uint16_t avg_vcc_mv;
 	uint16_t noload_vcc_mv;
 	uint8_t irq_state;
+	uint8_t i;
 
 	if (USE_BAT_MONITOR) {
 		/* Calculate moving average. */
@@ -109,8 +117,12 @@ void evaluate_battery_voltage(uint16_t vcc_mv)
 
 		/* Get the active setpoint.
 		 * If the battery voltage already is critical
-		 * and PWM is turned off, then this will be 0. */
-		setpoint = pwm_sp_get(IF_RGB(0));//TODO
+		 * and PWM is turned off, then this will be 0.
+		 * We add all RGB setpoints.
+		 * That's not physically correct, but good enough for now. */
+		setpoint = 0u;
+		for (i = 0u; i < NR_PWM; i++)
+			setpoint = add_sat_u16(setpoint, pwm_sp_get(IF_RGB(i)));
 
 		/* Calculate the battery voltage that we would have without load.
 		 * by adding the drop voltage from the drop model. */
