@@ -9,23 +9,24 @@ Simplepwm is a small PWM brightness controller for LED lamps.
 Microcontroller
 ===============
 
-Simplepwm supports these microcontrollers:
+Simplepwm supports the following microcontrollers. Not all features are supported on all microcontrollers. See the table for details.
 
-Atmel/Microchip ATTiny 25/45/85:
-
-* Full feature set.
-
-Atmel/Microchip ATTiny 13:
-
-* Reduced feature set.
-* No battery power saving.
-* No battery voltage monitoring.
+============================  ===========  ==========  =========  =========  =========  =========
+..                            ATMega-328P  ATMega-88P  ATTiny-85  ATTiny-45  ATTiny-25  ATTiny-13
+============================  ===========  ==========  =========  =========  =========  =========
+Number of analog pot. inputs       3           3           1          1          1          1
+Number of PWM outputs              3           3           1          1          1          1
+Battery power saving               x           x           x          x
+Battery voltage monitoring         x           x           x          x
+============================  ===========  ==========  =========  =========  =========  =========
 
 
 Hardware schematics
 ===================
 
-See `schematics/simplepwm.pdf <schematics/simplepwm.pdf>`_
+Schematics for ATMega based setups: `schematics-atmega/simplepwm-atmega.pdf <schematics-atmega/simplepwm-atmega.pdf>`_
+
+Schematics for ATTiny based setups: `schematics-attiny/simplepwm-attiny.pdf <schematics-attiny/simplepwm-attiny.pdf>`_
 
 
 Prebuilt firmware images
@@ -62,6 +63,8 @@ Valid values are:
 * ATTiny 25: `DEV=t25`
 * ATTiny 45: `DEV=t45`
 * ATTiny 85: `DEV=t85`
+* ATMega 88P: `DEV=m88p`
+* ATMega 328P: `DEV=m328p`
 
 
 Flashing the firmware after build
