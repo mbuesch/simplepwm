@@ -33,6 +33,7 @@ SRCS			:= \
 			adc.c \
 			battery.c \
 			curve.c \
+			debug.c \
 			filter.c \
 			main.c \
 			movingavg.c \

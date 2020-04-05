@@ -19,6 +19,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "main.h"
 #include "util.h"
 #include "pwm.h"
@@ -27,7 +28,6 @@
 #include "battery.h"
 #include "potentiometer.h"
 #include "arithmetic.h"
-
 
 static struct {
 	uint16_t sys_active_ms;
@@ -165,6 +165,9 @@ static void set_PRR(bool full_powerdown)
 # ifdef PRADC
 		^ (1u << PRADC) /* enable ADC */
 # endif
+# if defined(PRUSART0) && DEBUG
+		^ (1u << PRUSART0) /* enable USART */
+# endif
 		);
 	}
 #endif /* PRR */
@@ -258,6 +261,7 @@ int _mainfunc main(void)
 {
 	bool go_deep;
 
+	debug_init();
 	ports_init();
 	power_reduction(false);
 	battery_init();
@@ -280,6 +284,8 @@ int _mainfunc main(void)
 				go_deep = true;
 				system.sys_active_ms = 0u;
 				system.deep_sleep_request = false;
+
+				debug_prepare_deep_sleep();
 			}
 
 			system.deep_sleep_active = go_deep;

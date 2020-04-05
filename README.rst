@@ -18,6 +18,7 @@ Number of analog pot. inputs       3           3           1          1         
 Number of PWM outputs              3           3           1          1          1          1
 Battery power saving               x           x           x          x
 Battery voltage monitoring         x           x           x          x
+Debugging via UART                 x           x
 ============================  ===========  ==========  =========  =========  =========  =========
 
 

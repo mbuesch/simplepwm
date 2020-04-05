@@ -19,6 +19,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "filter.h"
 #include "util.h"
 #include "arithmetic.h"

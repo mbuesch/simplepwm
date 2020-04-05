@@ -19,6 +19,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "curve.h"
 #include "util.h"
 

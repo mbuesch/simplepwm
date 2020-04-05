@@ -19,6 +19,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "pwm.h"
 #include "util.h"
 #include "main.h"

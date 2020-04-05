@@ -19,6 +19,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "battery.h"
 #include "main.h"
 #include "arithmetic.h"
@@ -131,6 +132,9 @@ void evaluate_battery_voltage(uint16_t vcc_mv)
 					    setpoint);
 		drop_mv = min(drop_mv, BAT_DROP_MODEL_MAX_MV);
 		noload_vcc_mv = add_sat_u16(avg_vcc_mv, drop_mv);
+
+		dprintf("Battery: vcc_mv=%u avg_vcc_mv=%u drop_mv=%u noload_vcc_mv=%u\r\n",
+			vcc_mv, avg_vcc_mv, drop_mv, noload_vcc_mv);
 
 		/* Evaluate the no-load battery voltage and set the
 		 * critical flag, if needed. */

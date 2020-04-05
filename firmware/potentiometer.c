@@ -19,6 +19,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "potentiometer.h"
 #include "main.h"
 

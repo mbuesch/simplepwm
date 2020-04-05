@@ -19,6 +19,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "watchdog.h"
 #include "main.h"
 #include "util.h"
@@ -138,6 +139,8 @@ void watchdog_set_standby(bool standby)
 ISR(WDT_vect)
 {
 	memory_barrier();
+
+//	dprintf("WDT_vect\r\n");
 
 	/* Notify the system. */
 	system_handle_watchdog_interrupt();

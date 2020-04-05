@@ -48,6 +48,12 @@
 /* Always-inline function attribute. */
 #define alwaysinline		inline __attribute__((__always_inline__))
 
+/* Build-time assertion.
+ * 'cond' must be a compile-time constant.
+ * Build will fail, if 'cond' is false.
+ */
+#define build_assert(cond)	((void)sizeof(char[1 - 2 * !(cond)]))
+
 /* Code flow attributes */
 #define noreturn		__attribute__((__noreturn__))
 #define _mainfunc		__attribute__((__OS_main__))

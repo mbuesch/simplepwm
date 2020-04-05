@@ -20,6 +20,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "adc.h"
 #include "util.h"
 #include "main.h"

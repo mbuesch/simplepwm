@@ -6,6 +6,7 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/cpufunc.h>
+#include <avr/pgmspace.h>
 #include <util/delay.h>
 
 
