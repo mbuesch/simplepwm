@@ -68,22 +68,6 @@ static struct {
 } adc;
 
 
-/* Returns true, if a battery measurement conversion is currently active. */
-bool adc_battery_measurement_active(void)
-{
-	if (USE_BAT_MONITOR)
-		return adc.battery_meas_requested || adc.battery_meas_running;
-	return false;
-}
-
-/* Request a measurement of the battery voltage.
- * Interrupts must be disabled before calling this function. */
-void adc_request_battery_measurement(void)
-{
-	if (USE_BAT_MONITOR)
-		adc.battery_meas_requested = true;
-}
-
 #define ADC_MUXMODE_NORM	0u
 #define ADC_MUXMODE_BAT		1u
 
@@ -171,6 +155,30 @@ static void adc_configure(bool enable)
 			/* Battery voltage is critical and no battery measurement
 			 * has been requested.
 			 * Keep the ADC shut down. */
+		}
+	}
+}
+
+/* Returns true, if a battery measurement conversion is currently active. */
+bool adc_battery_measurement_active(void)
+{
+	if (USE_BAT_MONITOR)
+		return adc.battery_meas_requested || adc.battery_meas_running;
+	return false;
+}
+
+/* Request a measurement of the battery voltage.
+ * Interrupts must be disabled before calling this function. */
+void adc_request_battery_measurement(void)
+{
+	if (USE_BAT_MONITOR) {
+		adc.battery_meas_requested = true;
+		if (ADCSRA & (1 << ADEN)) {
+			/* The ADC will be reconfigured by the completion
+			 * interrupt of the currently running conversion. */
+		} else {
+			/* No conversion currently running. Reconfigure ADC now. */
+			adc_configure(true);
 		}
 	}
 }
