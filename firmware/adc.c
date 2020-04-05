@@ -51,6 +51,15 @@
 # define ADC2_MUX		0
 #endif
 
+#if NR_ADC == 3
+# define ADC_DIDR_MASK		((1 << ADC2D) | (1 << ADC1D) | (1 << ADC0D))
+#elif NR_ADC == 1
+# define ADC_DIDR_MASK		(1 << ADC2D)
+#else
+# error
+#endif
+
+
 static struct {
 	/* Currently active ADC MUX */
 	uint8_t index;
@@ -122,8 +131,8 @@ static void adc_configure(bool enable)
 
 	/* Disable ADC unit. */
 	ADCSRA = 0;
-	/* Disable ADC2 digital input */
-	DIDR0 = (1 << ADC2D);
+	/* Disable ADC digital input */
+	DIDR0 = ADC_DIDR_MASK;
 	/* Trigger source = free running */
 	ADCSRB = (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
 
