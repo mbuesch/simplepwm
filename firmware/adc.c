@@ -29,6 +29,7 @@
 #include "pwm.h"
 #include "filter.h"
 #include "battery.h"
+#include "arithmetic.h"
 
 
 /* ADC configuration. */
@@ -71,6 +72,8 @@ static struct {
 	struct lp_filter filter[NR_ADC];
 	/* Is the input idle? */
 	bool standby_ready[NR_ADC];
+	/* Number of ADC inputs sucessfully measured. */
+	uint8_t conv_count;
 	/* Delay counter for battery measurement. */
 	uint8_t delay;
 	/* Previous PWM interrupt count state. */
@@ -291,8 +294,10 @@ ISR(ADC_vect)
 						      raw_setpoint);
 
 			/* This channel is ready for standby, if idle. */
-			if (USE_DEEP_SLEEP)
+			if (USE_DEEP_SLEEP) {
 				adc.standby_ready[index] = (raw_setpoint == 0u);
+				adc.conv_count = add_sat_u8(adc.conv_count, 1u);
+			}
 
 			/* Globally disable interrupts.
 			 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
@@ -326,7 +331,8 @@ ISR(ADC_vect)
 			}
 
 			/* If the PWM is disabled, request deep sleep to save power. */
-			if (USE_DEEP_SLEEP && adc.index == 0u) {
+			if (USE_DEEP_SLEEP && adc.conv_count >= NR_ADC) {
+				adc.conv_count = 0u;
 				go_standby = allow_standby;
 				for (i = 0u; i < NR_ADC; i++)
 					go_standby &= adc.standby_ready[i];
