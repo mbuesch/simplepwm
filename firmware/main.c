@@ -29,6 +29,7 @@
 #include "potentiometer.h"
 #include "arithmetic.h"
 
+
 static struct {
 	uint16_t sys_active_ms;
 	uint16_t deep_sleep_delay_timer_ms;
@@ -261,9 +262,9 @@ int _mainfunc main(void)
 {
 	bool go_deep;
 
-	debug_init();
 	ports_init();
 	power_reduction(false);
+	debug_init();
 	battery_init();
 
 	while (1) {
@@ -281,14 +282,14 @@ int _mainfunc main(void)
 			    (battery_voltage_is_critical() &&
 			     !adc_battery_measurement_active())) {
 
-				go_deep = true;
+				debug_prepare_deep_sleep();
+
 				system.sys_active_ms = 0u;
 				system.deep_sleep_request = false;
-
-				debug_prepare_deep_sleep();
-			}
-
-			system.deep_sleep_active = go_deep;
+				system.deep_sleep_active = true;
+				go_deep = true;
+			} else
+				system.deep_sleep_active = false;
 		}
 
 		#pragma GCC diagnostic ignored "-Wconversion"

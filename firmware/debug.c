@@ -28,6 +28,7 @@
 #if DEBUG && IS_ATMEGAx8
 
 
+static bool dbg_initialized;
 static uint8_t dbg_ringbuf[256];
 static uint16_t dbg_ringbuf_in;
 static uint16_t dbg_ringbuf_out;
@@ -56,6 +57,9 @@ ISR(USART_UDRE_vect)
 static void debug_ringbuf_putbyte(uint8_t b)
 {
 	uint8_t irq_state;
+
+	if (!dbg_initialized)
+		return;
 
 	irq_state = irq_disable_save();
 
@@ -89,6 +93,9 @@ void dfprintf(const char __flash *fmt, ...)
 {
 	va_list args;
 
+	if (!dbg_initialized)
+		return;
+
 	va_start(args, fmt);
 	vfprintf_P(&debug_fstream, (const char *)fmt, args);
 	va_end(args);
@@ -96,12 +103,15 @@ void dfprintf(const char __flash *fmt, ...)
 
 void debug_prepare_deep_sleep(void)
 {
+	if (!dbg_initialized)
+		return;
+
 	dprintf("Entering deep sleep\r\n");
 	while (dbg_ringbuf_used) {
 		if (UCSR0A & (1 << UDRE0))
 			tx_next_byte();
 	}
-	_delay_ms(1);
+	_delay_us(300);
 }
 
 #define BAUDRATE	19200ul
@@ -124,6 +134,9 @@ void debug_init(void)
 
 	stdout = &debug_fstream;
 	stderr = &debug_fstream;
+
+	memory_barrier();
+	dbg_initialized = true;
 }
 
 #endif /* DEBUG && IS_ATMEGAx8 */
