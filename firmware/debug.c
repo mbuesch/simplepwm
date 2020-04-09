@@ -28,24 +28,33 @@
 #if DEBUG && IS_ATMEGAx8
 
 
-static bool dbg_initialized;
-static uint8_t dbg_ringbuf[256];
-static uint16_t dbg_ringbuf_in;
-static uint16_t dbg_ringbuf_out;
-static uint16_t dbg_ringbuf_used;
+#define BAUDRATE	19200ul
+
+#define USE_2X		(((uint64_t)F_CPU % (8ull * BAUDRATE)) < \
+			 ((uint64_t)F_CPU % (16ull * BAUDRATE)))
+#define UBRRVAL		((uint64_t)F_CPU / ((USE_2X ? 8ull : 16ull) * BAUDRATE))
+
+
+static struct {
+	bool initialized;
+	uint8_t ringbuf[256];
+	uint16_t ringbuf_in;
+	uint16_t ringbuf_out;
+	uint16_t ringbuf_used;
+} dbg;
 
 
 static void tx_next_byte(void)
 {
-	if (dbg_ringbuf_used) {
-		UDR0 = dbg_ringbuf[dbg_ringbuf_out];
-		if (dbg_ringbuf_out >= ARRAY_SIZE(dbg_ringbuf) - 1u)
-			dbg_ringbuf_out = 0u;
+	if (dbg.ringbuf_used) {
+		UDR0 = dbg.ringbuf[dbg.ringbuf_out];
+		if (dbg.ringbuf_out >= ARRAY_SIZE(dbg.ringbuf) - 1u)
+			dbg.ringbuf_out = 0u;
 		else
-			dbg_ringbuf_out++;
-		dbg_ringbuf_used--;
+			dbg.ringbuf_out++;
+		dbg.ringbuf_used--;
 	}
-	if (!dbg_ringbuf_used)
+	if (!dbg.ringbuf_used)
 		UCSR0B &= (uint8_t)~(1 << UDRIE0);
 }
 
@@ -58,18 +67,18 @@ static void debug_ringbuf_putbyte(uint8_t b)
 {
 	uint8_t irq_state;
 
-	if (!dbg_initialized)
+	if (!dbg.initialized)
 		return;
 
 	irq_state = irq_disable_save();
 
-	if (dbg_ringbuf_used < ARRAY_SIZE(dbg_ringbuf)) {
-		dbg_ringbuf[dbg_ringbuf_in] = b;
-		if (dbg_ringbuf_in >= ARRAY_SIZE(dbg_ringbuf) - 1)
-			dbg_ringbuf_in = 0u;
+	if (dbg.ringbuf_used < ARRAY_SIZE(dbg.ringbuf)) {
+		dbg.ringbuf[dbg.ringbuf_in] = b;
+		if (dbg.ringbuf_in >= ARRAY_SIZE(dbg.ringbuf) - 1)
+			dbg.ringbuf_in = 0u;
 		else
-			dbg_ringbuf_in++;
-		dbg_ringbuf_used++;
+			dbg.ringbuf_in++;
+		dbg.ringbuf_used++;
 	}
 
 	UCSR0B |= 1 << UDRIE0;
@@ -93,7 +102,7 @@ void dfprintf(const char __flash *fmt, ...)
 {
 	va_list args;
 
-	if (!dbg_initialized)
+	if (!dbg.initialized)
 		return;
 
 	va_start(args, fmt);
@@ -103,22 +112,16 @@ void dfprintf(const char __flash *fmt, ...)
 
 void debug_prepare_deep_sleep(void)
 {
-	if (!dbg_initialized)
+	if (!dbg.initialized)
 		return;
 
 	dprintf("Entering deep sleep\r\n");
-	while (dbg_ringbuf_used) {
+	while (dbg.ringbuf_used) {
 		if (UCSR0A & (1 << UDRE0))
 			tx_next_byte();
 	}
 	_delay_us(300);
 }
-
-#define BAUDRATE	19200ul
-
-#define USE_2X		(((uint64_t)F_CPU % (8ull * BAUDRATE)) < \
-			 ((uint64_t)F_CPU % (16ull * BAUDRATE)))
-#define UBRRVAL		((uint64_t)F_CPU / ((USE_2X ? 8ull : 16ull) * BAUDRATE))
 
 void debug_init(void)
 {
@@ -136,7 +139,7 @@ void debug_init(void)
 	stderr = &debug_fstream;
 
 	memory_barrier();
-	dbg_initialized = true;
+	dbg.initialized = true;
 }
 
 #endif /* DEBUG && IS_ATMEGAx8 */
