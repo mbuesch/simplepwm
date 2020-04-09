@@ -139,12 +139,21 @@ void evaluate_battery_voltage(uint16_t vcc_mv)
 		/* Evaluate the no-load battery voltage and set the
 		 * critical flag, if needed. */
 		irq_state = irq_disable_save();
-		if (noload_vcc_mv >= (BAT_CRITICAL_MIN_MV + BAT_CRITICAL_HYST_MV))
+		if (noload_vcc_mv >= (BAT_CRITICAL_MIN_MV + BAT_CRITICAL_HYST_MV)) {
+			if (bat.voltage_critical)
+				dprintf("Battery voltage not critical anymore.\r\n");
 			bat.voltage_critical = false;
-		if (noload_vcc_mv < BAT_CRITICAL_MIN_MV)
+		}
+		if (noload_vcc_mv < BAT_CRITICAL_MIN_MV) {
+			if (!bat.voltage_critical)
+				dprintf("Battery voltage critical: Under-voltage.\r\n");
 			bat.voltage_critical = true;
-		if (noload_vcc_mv > BAT_PLAUS_MAX_MV)
+		}
+		if (noload_vcc_mv > BAT_PLAUS_MAX_MV) {
+			if (!bat.voltage_critical)
+				dprintf("Battery voltage critical: Over-voltage.\r\n");
 			bat.voltage_critical = true;
+		}
 		irq_restore(irq_state);
 	}
 }
