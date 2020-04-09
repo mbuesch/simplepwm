@@ -202,6 +202,50 @@ static inline void pwm_hw_clear_irq_flag(uint8_t index)
 	}
 }
 
+/* Enable/disable the timer interrupt. */
+static inline void pwm_hw_enable_irq(uint8_t index, bool enable)
+{
+	if (enable) {
+		switch (index) {
+#if NR_PWM >= 1
+		case 0u:
+			TIMSK0 |= (1u << TOIE0);
+			break;
+#endif
+#if NR_PWM >= 2
+		case 1u:
+			TIMSK1 |= (1u << TOIE1);
+			break;
+#endif
+#if NR_PWM >= 3
+		case 2u:
+			TIMSK2 |= (1u << TOIE2);
+			break;
+#endif
+		}
+	} else {
+		switch (index) {
+#if NR_PWM >= 1
+		case 0u:
+			TIMSK0 &= (uint8_t)~(1u << TOIE0);
+			break;
+#endif
+#if NR_PWM >= 2
+		case 1u:
+			TIMSK1 &= (uint8_t)~(1u << TOIE1);
+			break;
+#endif
+#if NR_PWM >= 3
+		case 2u:
+			TIMSK2 &= (uint8_t)~(1u << TOIE2);
+			break;
+#endif
+		}
+	}
+
+	pwm_hw_clear_irq_flag(index);
+}
+
 /* Stop the timer hardware. */
 static inline void pwm_hw_stop_timer(uint8_t index)
 {
@@ -284,9 +328,6 @@ static inline void pwm_hw_set_operation_mode(uint8_t index, uint8_t mode)
 			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |
 				 (0u << WGM02) |
 				 (1u << CS02) | (0u << CS01) | (0u << CS00);
-
-			/* Enable the TIM0_OVF interrupt. */
-			TIMSK0 |= (1u << TOIE0);
 			break;
 #endif
 #if NR_PWM >= 2
@@ -296,9 +337,6 @@ static inline void pwm_hw_set_operation_mode(uint8_t index, uint8_t mode)
 			TCCR1B = (0u << ICNC1) | (0u << ICES1) |
 				 (0u << WGM13) | (1u << WGM12) |
 				 (1u << CS12) | (0u << CS11) | (0u << CS10);
-
-			/* Enable the TIM1_OVF interrupt. */
-			TIMSK1 |= (1u << TOIE1);
 			break;
 #endif
 #if NR_PWM >= 3
@@ -307,9 +345,6 @@ static inline void pwm_hw_set_operation_mode(uint8_t index, uint8_t mode)
 			TCCR2B = (0u << FOC2A) | (0u << FOC2B) |
 				 (0u << WGM22) |
 				 (1u << CS22) | (1u << CS21) | (0u << CS20);
-
-			/* Enable the TIM2_OVF interrupt. */
-			TIMSK2 |= (1u << TOIE2);
 			break;
 #endif
 		}
@@ -321,9 +356,6 @@ static inline void pwm_hw_set_operation_mode(uint8_t index, uint8_t mode)
 			TCCR0B = (0u << FOC0A) | (0u << FOC0B) |
 				 (0u << WGM02) |
 				 (0u << CS02) | (0u << CS01) | (1u << CS00);
-
-			/* Disable the TIM0_OVF interrupt. */
-			TIMSK0 &= (uint8_t)~(1u << TOIE0);
 			break;
 #endif
 #if NR_PWM >= 2
@@ -333,9 +365,6 @@ static inline void pwm_hw_set_operation_mode(uint8_t index, uint8_t mode)
 			TCCR1B = (0u << ICNC1) | (0u << ICES1) |
 				 (0u << WGM13) | (1u << WGM12) |
 				 (0u << CS12) | (0u << CS11) | (1u << CS10);
-
-			/* Disable the TIM1_OVF interrupt. */
-			TIMSK1 &= (uint8_t)~(1u << TOIE1);
 			break;
 #endif
 #if NR_PWM >= 3
@@ -344,16 +373,13 @@ static inline void pwm_hw_set_operation_mode(uint8_t index, uint8_t mode)
 			TCCR2B = (0u << FOC2A) | (0u << FOC2B) |
 				 (0u << WGM22) |
 				 (0u << CS22) | (0u << CS21) | (1u << CS20);
-
-			/* Disable the TIM2_OVF interrupt. */
-			TIMSK2 &= (uint8_t)~(1u << TOIE2);
 			break;
 #endif
 		}
 	}
 
-	/* Clear the interrupt flag. */
-	pwm_hw_clear_irq_flag(index);
+	/* Enable or disable the OVF interrupt. */
+	pwm_hw_enable_irq(index, (mode == PWM_IRQ_MODE));
 }
 
 /* Set the PWM output port state. */
@@ -373,6 +399,7 @@ static void pwm_turn_off_all(void)
 	for (i = 0u; i < NR_PWM; i++) {
 		/* Stop timer. */
 		pwm_hw_stop_timer(i);
+		pwm_hw_enable_irq(i, false);
 		pwm_hw_set_hardware_driven(i, false);
 
 		/* Set output to idle state. */
