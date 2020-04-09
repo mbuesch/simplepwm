@@ -60,6 +60,8 @@
 # error
 #endif
 
+#define ADC_DISCARD		(USE_BAT_MONITOR || (NR_ADC > 1))
+
 
 static struct {
 	/* Currently active ADC MUX */
@@ -74,8 +76,8 @@ static struct {
 	bool standby_ready[NR_ADC];
 	/* Number of ADC inputs sucessfully measured. */
 	uint8_t conv_count;
-	/* Delay counter for battery measurement. */
-	uint8_t delay;
+	/* Number of samples to discard. */
+	uint8_t discard;
 	/* Previous PWM interrupt count state. */
 	uint8_t prev_pwm_count;
 } adc;
@@ -130,8 +132,6 @@ static inline void adc_configure_mux(uint8_t mux_mode, uint8_t index)
  * Interrupts must be disabled before calling this function. */
 static void adc_configure(bool enable)
 {
-	uint8_t auto_trigger;
-
 	/* Disable ADC unit. */
 	ADCSRA = 0;
 	/* Disable ADC digital input */
@@ -151,19 +151,16 @@ static void adc_configure(bool enable)
 				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
 			/* Discard the first few results to compensate
 			 * for Vbg settling time (1 ms). */
-			adc.delay = 10;
+			adc.discard = 10;
 		} else if (!battery_voltage_is_critical()) {
 			/* Configure the MUX to the active input ADC. */
 			adc_configure_mux(ADC_MUXMODE_NORM, adc.index);
-			/* Enable free running mode in single-ADC mode. */
-			if (NR_ADC <= 1u)
-				auto_trigger = (1 << ADATE);
-			else
-				auto_trigger = 0u;
-			/* Enable and start ADC; PS = 64; IRQ enabled */
-			ADCSRA = (1 << ADEN) | (1 << ADSC) | auto_trigger |
+			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
+			ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADATE) |
 				 (1 << ADIF) | (1 << ADIE) |
 				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
+			if (NR_ADC > 1)
+				adc.discard = 1;
 		} else {
 			/* Battery voltage is critical and no battery measurement
 			 * has been requested.
@@ -228,10 +225,10 @@ ISR(ADC_vect)
 	/* Read the analog input */
 	raw_adc = ADC;
 
-	if (USE_BAT_MONITOR && adc.battery_meas_running) {
-		/* Battery voltage measurement mode. */
+	if (!ADC_DISCARD || adc.discard == 0) {
+		if (USE_BAT_MONITOR && adc.battery_meas_running) {
+			/* Battery voltage measurement mode. */
 
-		if (adc.delay == 0u) {
 			/* Convert the raw ADC value to millivolts. */
 			if (raw_adc > 0u) {
 				vcc_mv = lim_u16((((uint32_t)ADC_MAX + 1u) * (uint32_t)ADC_VBG_MV) /
@@ -263,82 +260,81 @@ ISR(ADC_vect)
 			adc.battery_meas_running = false;
 			adc_configure(true);
 		} else {
-			/* VRef/Vbg is not stable, yet.
-			 * Continue waiting... */
-			adc.delay--;
-			irq_disable();
+			if (pwm_collision) {
+				/* An IRQ controlled PWM output actuation happened
+				 * during the measurement.
+				 * Discard this measurement. */
+				irq_disable();
+				allow_standby = false;
+			} else {
+				/* Normal operation mode. */
+
+				if (ADC_INVERT)
+					raw_adc = ADC_MAX - raw_adc;
+
+				/* Transform the value according to the transformation curve. */
+				raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
+								 ARRAY_SIZE(adc2sp_transformation_curve),
+								 raw_adc);
+
+				index = (NR_ADC > 1u) ? adc.index : 0u;
+
+				/* Filter the setpoint value. */
+				filt_setpoint = lp_filter_run(&adc.filter[index],
+							      ADC_FILTER_SHIFT,
+							      raw_setpoint);
+
+				/* This channel is ready for standby, if idle. */
+				if (USE_DEEP_SLEEP) {
+					adc.standby_ready[index] = (raw_setpoint == 0u);
+					adc.conv_count = add_sat_u8(adc.conv_count, 1u);
+				}
+
+				/* Globally disable interrupts.
+				 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
+				irq_disable();
+
+				/* Change the output signal (PWM). */
+				output_setpoint(IF_RGB(index,)
+						filt_setpoint);
+
+				/* Increment index to the next ADC. */
+				if (NR_ADC > 1u) {
+					if (++adc.index >= NR_ADC)
+						adc.index = 0u;
+				}
+
+				allow_standby = true;
+			}
+
+			if (USE_BAT_MONITOR && adc.battery_meas_requested) {
+				/* Battery measurement requested.
+				 * Reconfigure the ADC for battery measurement. */
+				adc_configure(true);
+			} else {
+				/* Switch MUX to the next ADC
+				 * and trigger next conversion. */
+				if (NR_ADC > 1u) {
+					adc_configure_mux(ADC_MUXMODE_NORM, adc.index);
+					adc.discard = 1;
+				} else {
+					/* Free running mode is enabled. */
+				}
+
+				/* If the PWM is disabled, request deep sleep to save power. */
+				if (USE_DEEP_SLEEP && adc.conv_count >= NR_ADC) {
+					adc.conv_count = 0u;
+					go_standby = allow_standby;
+					for (i = 0u; i < NR_ADC; i++)
+						go_standby &= adc.standby_ready[i];
+					system_set_standby(go_standby);
+				}
+			}
 		}
 	} else {
-		if (pwm_collision) {
-			/* An IRQ controlled PWM output actuation happened
-			 * during the measurement.
-			 * Discard this measurement. */
-			irq_disable();
-			allow_standby = false;
-		} else {
-			/* Normal operation mode. */
-
-			if (ADC_INVERT)
-				raw_adc = ADC_MAX - raw_adc;
-
-			/* Transform the value according to the transformation curve. */
-			raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
-							 ARRAY_SIZE(adc2sp_transformation_curve),
-							 raw_adc);
-
-			index = (NR_ADC > 1u) ? adc.index : 0u;
-
-			/* Filter the setpoint value. */
-			filt_setpoint = lp_filter_run(&adc.filter[index],
-						      ADC_FILTER_SHIFT,
-						      raw_setpoint);
-
-			/* This channel is ready for standby, if idle. */
-			if (USE_DEEP_SLEEP) {
-				adc.standby_ready[index] = (raw_setpoint == 0u);
-				adc.conv_count = add_sat_u8(adc.conv_count, 1u);
-			}
-
-			/* Globally disable interrupts.
-			 * TIM0_OVF_vect must not interrupt re-programming of the PWM below. */
-			irq_disable();
-
-			/* Change the output signal (PWM). */
-			output_setpoint(IF_RGB(index,)
-					filt_setpoint);
-
-			/* Increment index to the next ADC. */
-			if (NR_ADC > 1u) {
-				if (++adc.index >= NR_ADC)
-					adc.index = 0u;
-			}
-
-			allow_standby = true;
-		}
-
-		if (USE_BAT_MONITOR && adc.battery_meas_requested) {
-			/* Battery measurement requested.
-			 * Reconfigure the ADC for battery measurement. */
-			adc_configure(true);
-		} else {
-			/* Switch MUX to the next ADC
-			 * and trigger next conversion. */
-			if (NR_ADC > 1u) {
-				adc_configure_mux(ADC_MUXMODE_NORM, adc.index);
-				ADCSRA |= (1 << ADSC);
-			} else {
-				/* Free running mode is enabled. */
-			}
-
-			/* If the PWM is disabled, request deep sleep to save power. */
-			if (USE_DEEP_SLEEP && adc.conv_count >= NR_ADC) {
-				adc.conv_count = 0u;
-				go_standby = allow_standby;
-				for (i = 0u; i < NR_ADC; i++)
-					go_standby &= adc.standby_ready[i];
-				system_set_standby(go_standby);
-			}
-		}
+		/* Discard this sample. */
+		adc.discard--;
+		irq_disable();
 	}
 
 	/* If deep sleep support is disabled, then the watchdog IRQ is also disabled.
@@ -348,8 +344,7 @@ ISR(ADC_vect)
 
 	/* Re-enable the ADC interrupt. */
 	ADCSRA |= (1u << ADIE);
-	if (NR_ADC <= 1u)
-		ADCSRA |= (1u << ADIF);
+	ADCSRA |= (1u << ADIF);
 
 	memory_barrier();
 }
