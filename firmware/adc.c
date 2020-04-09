@@ -302,6 +302,10 @@ ISR(ADC_vect)
 				if (NR_ADC > 1u) {
 					if (++adc.index >= NR_ADC)
 						adc.index = 0u;
+
+					/* Switch MUX to the next ADC. */
+					adc_configure_mux(ADC_MUXMODE_NORM, adc.index);
+					adc.discard = 1;
 				}
 
 				allow_standby = true;
@@ -312,15 +316,6 @@ ISR(ADC_vect)
 				 * Reconfigure the ADC for battery measurement. */
 				adc_configure(true);
 			} else {
-				/* Switch MUX to the next ADC
-				 * and trigger next conversion. */
-				if (NR_ADC > 1u) {
-					adc_configure_mux(ADC_MUXMODE_NORM, adc.index);
-					adc.discard = 1;
-				} else {
-					/* Free running mode is enabled. */
-				}
-
 				/* If the PWM is disabled, request deep sleep to save power. */
 				if (USE_DEEP_SLEEP && adc.conv_count >= NR_ADC) {
 					adc.conv_count = 0u;
