@@ -97,7 +97,7 @@ void dfprintf(const char __flash *fmt, ...)
 		return;
 
 	va_start(args, fmt);
-	vfprintf_P(&debug_fstream, (const char *)fmt, args);
+	vfprintf_P(&debug_fstream, (const char * _cast_force)fmt, args);
 	va_end(args);
 }
 

@@ -23,10 +23,10 @@
 #include <stdio.h>
 #include <avr/pgmspace.h>
 
-#define __force				__attribute__((force))
+#define _cast_force				__attribute__((force))
 #undef PSTR
-#define PSTR(x)				((typeof(*x) __flash * __force)(x))
-#define to_memx(x)			((typeof(*x) __memx * __force)(x))
+#define PSTR(x)				((typeof(*x) __flash * _cast_force)(x))
+#define to_memx(x)			((typeof(*x) __memx * _cast_force)(x))
 #undef FDEV_SETUP_STREAM
 #define FDEV_SETUP_STREAM(p, g, f)	{}
 
@@ -40,7 +40,8 @@ extern void _delay_loop_2(uint16_t x);
 
 #else /* __CHECKER__ */
 
-#define to_memx(x)	(x)
+#define to_memx(x)			(x)
+#define _cast_force			/* nothing */
 
 #endif /* __CHECKER__ */
 #endif /* SPARSE_H_ */
