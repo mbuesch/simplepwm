@@ -60,12 +60,16 @@ Please specify the target microcontroller using the DEV variable as shown above.
 
 Valid values are:
 
-* ATTiny 13: `DEV=t13`
-* ATTiny 25: `DEV=t25`
-* ATTiny 45: `DEV=t45`
-* ATTiny 85: `DEV=t85`
-* ATMega 88P: `DEV=m88p`
-* ATMega 328P: `DEV=m328p`
+===============  ===========
+Microcontroller  make option
+===============  ===========
+ATTiny 13        `DEV=t13`
+ATTiny 25        `DEV=t25`
+ATTiny 45        `DEV=t45`
+ATTiny 85        `DEV=t85`
+ATMega 88P       `DEV=m88p`
+ATMega 328P      `DEV=m328p`
+===============  ===========
 
 
 Flashing the firmware after build
