@@ -4,8 +4,8 @@ EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 1
-Title "Simple PWM LED controller"
-Date "2020-01-07"
+Title "Simple PWM LED controller (1 channel)"
+Date "2020-04-10"
 Rev "1.1"
 Comp "Copyright (c) 2018-2020 Michael Buesch <m@bues.ch>"
 Comment1 "Licensed under the GNU/GPL v2 or (at your option) any later version."

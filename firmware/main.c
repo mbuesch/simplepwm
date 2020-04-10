@@ -49,9 +49,11 @@ static struct {
 #define DEEP_SLEEP_DELAY_AFTER_ACTIVE_MS	300u /* milliseconds */
 
 /* Main loop debug indicator. */
-#define MAINLOOPDBG_PIN		PINB
-#define MAINLOOPDBG_BIT		7u
 #define USE_MAINLOOPDBG		(DEBUG && IS_ATMEGAx8)
+#if USE_MAINLOOPDBG
+# define MAINLOOPDBG_PIN	PIND
+# define MAINLOOPDBG_BIT	2u
+#endif
 
 
 /* Set the output signal (PWM) setpoint.
@@ -99,11 +101,11 @@ static void ports_init(void)
 	 * PB4 = input / pullup
 	 * PB5 = input / pullup
 	 * PB6 = input / pullup
-	 * PB7 = output / high if USE_MAINLOOPDBG else input / pullup
+	 * PB7 = input / pullup
 	 */
-	DDRB =  (D << DDB7) | (0 << DDB6) | (0 << DDB5) | (0 << DDB4) |
+	DDRB =  (0 << DDB7) | (0 << DDB6) | (0 << DDB5) | (0 << DDB4) |
 	        (1 << DDB3) | (0 << DDB2) | (1 << DDB1) | (0 << DDB0);
-	PORTB = (1 << PB7) | (1 << PB6)  | (1 << PB5)  | (1 << PB4) |
+	PORTB = (1 << PB7)  | (1 << PB6)  | (1 << PB5)  | (1 << PB4) |
 	        (P << PB3)  | (1 << PB2)  | (P << PB1)  | (1 << PB0);
 	/* PC0 = input / no pullup
 	 * PC1 = input / no pullup
@@ -119,8 +121,8 @@ static void ports_init(void)
 	PORTC = (0       )  | (0 << PC6)  | (1 << PC5)  | (0 << PC4) |
 	        (1 << PC3)  | (0 << PC2)  | (0 << PC1)  | (0 << PC0);
 	/* PD0 = input / pullup
-	 * PD1 = input / pullup
-	 * PD2 = input / pullup
+	 * PD1 = UART TxD if DEBUG else input / pullup
+	 * PD2 = output / high if USE_MAINLOOPDBG else input / pullup
 	 * PD3 = input / pullup
 	 * PD4 = input / pullup
 	 * PD5 = input / pullup
@@ -128,7 +130,7 @@ static void ports_init(void)
 	 * PD7 = input / pullup
 	 */
 	DDRD =  (0 << DDD7) | (1 << DDD6) | (0 << DDD5) | (0 << DDD4) |
-	        (0 << DDD3) | (0 << DDD2) | (0 << DDD1) | (0 << DDD0);
+	        (0 << DDD3) | (D << DDD2) | (0 << DDD1) | (0 << DDD0);
 	PORTD = (1 << PD7)  | (P << PD6)  | (1 << PD5)  | (1 << PD4) |
 	        (1 << PD3)  | (1 << PD2)  | (1 << PD1)  | (1 << PD0);
 #else
@@ -270,9 +272,10 @@ int _mainfunc main(void)
 	while (1) {
 		irq_disable();
 
+#if USE_MAINLOOPDBG
 		/* Toggle debug pin. */
-		if (USE_MAINLOOPDBG)
-			MAINLOOPDBG_PIN |= (1u << MAINLOOPDBG_BIT);
+		MAINLOOPDBG_PIN |= (1u << MAINLOOPDBG_BIT);
+#endif
 
 		memory_barrier();
 		go_deep = false;
