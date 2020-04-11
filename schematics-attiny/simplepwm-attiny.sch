@@ -18,7 +18,7 @@ L MCU_Microchip_ATtiny:ATtiny85-20PU U1
 U 1 1 5E14CBD3
 P 3650 4200
 F 0 "U1" H 3121 4246 50  0000 R CNN
-F 1 "ATtinyXX-20PU" H 3121 4155 50  0000 R CNN
+F 1 "ATtinyXX" H 3121 4155 50  0000 R CNN
 F 2 "Package_DIP:DIP-8_W7.62mm" H 3650 4200 50  0001 C CIN
 F 3 "http://ww1.microchip.com/downloads/en/DeviceDoc/atmel-2586-avr-8-bit-microcontroller-attiny25-attiny45-attiny85_datasheet.pdf" H 3650 4200 50  0001 C CNN
 	1    3650 4200
@@ -226,10 +226,10 @@ F 3 "~" H 9500 3200 50  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L Device:R R2
+L Device:R R3
 U 1 1 5E17B11C
 P 9500 2550
-F 0 "R2" H 9570 2596 50  0000 L CNN
+F 0 "R3" H 9570 2596 50  0000 L CNN
 F 1 "R" H 9570 2505 50  0000 L CNN
 F 2 "" V 9430 2550 50  0001 C CNN
 F 3 "~" H 9500 2550 50  0001 C CNN
@@ -237,10 +237,10 @@ F 3 "~" H 9500 2550 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:Vdrive #PWR08
+L power:Vdrive #PWR07
 U 1 1 5E17C118
 P 9500 2050
-F 0 "#PWR08" H 9300 1900 50  0001 C CNN
+F 0 "#PWR07" H 9300 1900 50  0001 C CNN
 F 1 "Vdrive" H 9517 2223 50  0000 C CNN
 F 2 "" H 9500 2050 50  0001 C CNN
 F 3 "" H 9500 2050 50  0001 C CNN
@@ -248,10 +248,10 @@ F 3 "" H 9500 2050 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:GND #PWR09
+L power:GND #PWR08
 U 1 1 5E17C420
 P 9500 5000
-F 0 "#PWR09" H 9500 4750 50  0001 C CNN
+F 0 "#PWR08" H 9500 4750 50  0001 C CNN
 F 1 "GND" H 9505 4827 50  0000 C CNN
 F 2 "" H 9500 5000 50  0001 C CNN
 F 3 "" H 9500 5000 50  0001 C CNN
@@ -259,9 +259,9 @@ F 3 "" H 9500 5000 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	9500 4100 9500 5000
+	9500 4100 9500 4550
 Wire Wire Line
-	8200 3900 9200 3900
+	8200 3900 9000 3900
 Wire Wire Line
 	9500 3350 9500 3700
 Wire Wire Line
@@ -281,6 +281,29 @@ Wire Wire Line
 	6600 4200 4250 4200
 Wire Wire Line
 	6250 4300 4250 4300
-Text Notes 2550 4650 0    50   ~ 0
+Text Notes 2800 4650 0    50   ~ 0
 ATtiny13\nATtiny25\nATtiny45\nATtiny85
+$Comp
+L Device:R R2
+U 1 1 5E91A0CA
+P 9000 4200
+F 0 "R2" H 9070 4246 50  0000 L CNN
+F 1 "10k" H 9070 4155 50  0000 L CNN
+F 2 "" V 8930 4200 50  0001 C CNN
+F 3 "~" H 9000 4200 50  0001 C CNN
+	1    9000 4200
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	9000 4050 9000 3900
+Connection ~ 9000 3900
+Wire Wire Line
+	9000 3900 9200 3900
+Wire Wire Line
+	9000 4350 9000 4550
+Wire Wire Line
+	9000 4550 9500 4550
+Connection ~ 9500 4550
+Wire Wire Line
+	9500 4550 9500 5000
 $EndSCHEMATC
