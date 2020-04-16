@@ -28,6 +28,7 @@
 #include "battery.h"
 #include "potentiometer.h"
 #include "arithmetic.h"
+#include "outputsp.h"
 
 
 static struct {
@@ -182,6 +183,7 @@ static void power_reduction(bool full)
 		 * Enable used modules. */
 		set_PRR(false);
 		potentiometer_enable(true);
+		output_setpoint_init();
 		adc_init(true);
 		pwm_init(true);
 	}

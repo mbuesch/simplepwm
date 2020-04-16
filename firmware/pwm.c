@@ -425,12 +425,12 @@ uint8_t pwm_get_irq_count(void)
 
 /* Set the PWM setpoint.
  * Must be called with interrupts disabled. */
-void pwm_sp_set(IF_RGB(uint8_t index,) uint16_t setpoint)
+void pwm_sp_set(IF_MULTIPWM(uint8_t index,) uint16_t setpoint)
 {
 	uint32_t pwm_duty_range;
 	uint8_t pwm_duty;
 	uint8_t mode;
-	IF_NOT_RGB(uint8_t index = 0u);
+	IF_SINGLEPWM(uint8_t index = 0u);
 
 	if (battery_voltage_is_critical()) {
 
@@ -507,12 +507,12 @@ void pwm_sp_set(IF_RGB(uint8_t index,) uint16_t setpoint)
 }
 
 /* Get the active PWM setpoint. */
-uint16_t pwm_sp_get(IF_RGB(uint8_t index)
-		    IF_NOT_RGB(void))
+uint16_t pwm_sp_get(IF_MULTIPWM(uint8_t index)
+		    IF_SINGLEPWM(void))
 {
 	uint16_t setpoint;
 	uint8_t irq_state;
-	IF_NOT_RGB(uint8_t index = 0u);
+	IF_SINGLEPWM(uint8_t index = 0u);
 
 	irq_state = irq_disable_save();
 	setpoint = pwm.active_setpoint[index];
@@ -534,7 +534,7 @@ void pwm_init(bool enable)
 	/* Initialize output. */
 	if (enable) {
 		for (i = 0u; i < NR_PWM; i++)
-			pwm_sp_set(IF_RGB(i,) 0u);
+			pwm_sp_set(IF_MULTIPWM(i,) 0u);
 	} else
 		pwm_turn_off_all();
 }

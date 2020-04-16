@@ -24,10 +24,7 @@
 #include "adc.h"
 #include "util.h"
 #include "main.h"
-#include "curve.h"
-#include "curve_data_adc2sp.h"
 #include "pwm.h"
-#include "filter.h"
 #include "battery.h"
 #include "arithmetic.h"
 #include "outputsp.h"
@@ -38,8 +35,6 @@
 #define ADC_MIN			0u		/* Physical ADC minimum */
 #define ADC_MAX			0x3FFu		/* Physical ADC maximum */
 #define ADC_VBG_MV		1100u		/* Vbg in millivolts. */
-
-#define ADC_FILTER_SHIFT	9
 
 #define NR_ADC			NR_PWM
 
@@ -71,8 +66,6 @@ static struct {
 	bool battery_meas_requested;
 	/* Battery measurement running. */
 	bool battery_meas_running;
-	/* SW filtering. Per ADC MUX. */
-	struct lp_filter filter[NR_ADC];
 	/* Is the input idle? */
 	bool standby_ready[NR_ADC];
 	/* Number of ADC inputs sucessfully measured. */
@@ -251,7 +244,7 @@ ISR(ADC_vect)
 				 * This also reconfigures the
 				 * battery measurement interval. */
 				for (i = 0u; i < NR_PWM; i++)
-					output_setpoint(IF_RGB(i,) 0u);
+					output_setpoint_set(IF_MULTIPWM(i,) 0u);
 			}
 
 			/* We're done.
@@ -273,17 +266,12 @@ ISR(ADC_vect)
 				if (ADC_INVERT)
 					raw_adc = ADC_MAX - raw_adc;
 
-				/* Transform the value according to the transformation curve. */
-				raw_setpoint = curve_interpolate(adc2sp_transformation_curve,
-								 ARRAY_SIZE(adc2sp_transformation_curve),
-								 raw_adc);
-
 				index = (NR_ADC > 1u) ? adc.index : 0u;
 
-				/* Filter the setpoint value. */
-				filt_setpoint = lp_filter_run(&adc.filter[index],
-							      ADC_FILTER_SHIFT,
-							      raw_setpoint);
+				output_setpoint_transform(IF_MULTIPWM(index,)
+							  raw_adc,
+							  &raw_setpoint,
+							  &filt_setpoint);
 
 				/* This channel is ready for standby, if idle. */
 				if (USE_DEEP_SLEEP) {
@@ -296,8 +284,8 @@ ISR(ADC_vect)
 				irq_disable();
 
 				/* Change the output signal (PWM). */
-				output_setpoint(IF_RGB(index,)
-						filt_setpoint);
+				output_setpoint_set(IF_MULTIPWM(index,)
+						    filt_setpoint);
 
 				/* Increment index to the next ADC. */
 				if (NR_ADC > 1u) {
@@ -349,10 +337,6 @@ ISR(ADC_vect)
  * Interrupts must be disabled before calling this function. */
 void adc_init(bool enable)
 {
-	uint8_t i;
-
-	for (i = 0u; i < NR_ADC; i++)
-		lp_filter_reset(&adc.filter[i]);
 	adc.prev_pwm_count = pwm_get_irq_count();
 	memory_barrier();
 

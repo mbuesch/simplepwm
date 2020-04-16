@@ -18,6 +18,7 @@ Number of analog pot. inputs       3           3           1          1         
 Number of PWM outputs              3           3           1          1          1          1
 Battery power saving               x           x           x          x
 Battery voltage monitoring         x           x           x          x
+HSL color model                    x           x
 Debugging via UART                 x           x
 ============================  ===========  ==========  =========  =========  =========  =========
 
@@ -70,6 +71,17 @@ ATTiny 85        `DEV=t85`
 ATMega 88P       `DEV=m88p`
 ATMega 328P      `DEV=m328p`
 ===============  ===========
+
+Additional build options that can be passed to `make`:
+
+===========  ======  =======  ====================================================
+make option  values  default  description
+===========  ======  =======  ====================================================
+USE_HSL      0-1     1        Interpret the setpoints as HSL instead of RGB.
+PWM_LIM      1-100   100      Limit the maximum PWM duty cycle to this percentage.
+PWM_INVERT   0-1     0        Invert the PWM output signal(s).
+ADC_INVERT   0-1     0        Invert the ADC input signal(s).
+===========  ======  =======  ====================================================
 
 
 Flashing the firmware after build

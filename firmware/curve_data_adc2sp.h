@@ -17,3 +17,11 @@ static const struct curve_point __flash adc2sp_transformation_curve[] = {
         CURVE_POINT(1013, 65535),
         CURVE_POINT(1023, 65535),
 };
+
+static const struct curve_point __flash adc2sp_transformation_linear[] = {
+        /* raw ADC, PWM setpoint */
+        CURVE_POINT(0, 0),
+        CURVE_POINT(10, 0),
+        CURVE_POINT(1013, 65535),
+        CURVE_POINT(1023, 65535),
+};
