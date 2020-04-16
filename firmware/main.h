@@ -48,7 +48,6 @@
 #endif
 
 
-void output_setpoint(IF_RGB(uint8_t index,) uint16_t setpoint);
 void system_set_standby(bool standby);
 void system_handle_watchdog_interrupt(void);
 

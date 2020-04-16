@@ -73,7 +73,7 @@ void set_battery_mon_interval(uint16_t seconds)
 
 /* Update the battery measurement interval based on the PWM setpoint.
  * Interrupts shall be disabled before calling this function. */
-void battery_update_setpoint(IF_RGB(uint8_t index,) uint16_t setpoint)
+void battery_update_setpoint(void)
 {
 	uint8_t i;
 	bool any_sp_nonzero;

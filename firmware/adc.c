@@ -30,6 +30,7 @@
 #include "filter.h"
 #include "battery.h"
 #include "arithmetic.h"
+#include "outputsp.h"
 
 
 /* ADC configuration. */
