@@ -69,15 +69,32 @@ ISR(USART_UDRE_vect)
 }
 #endif /* USE_UART */
 
+#if USE_UART
+ISR(USART_RX_vect)
+{
+	uint8_t status;
+	uint8_t data;
+
+	status = UCSR0A;
+	data = UDR0;
+
+	if ((status & ((1u << FE0) | (1u << DOR0) | (1u << UPE0))) == 0u)
+	{
+		if (uart.rx_callback)
+			uart.rx_callback(data);
+	}
+}
+#endif /* USE_UART */
+
 void uart_register_callbacks(uart_txready_cb_t tx_ready, uart_rx_cb_t rx)
 {
 	IF_UART(
-		uart.tx_ready_callback = tx_ready;
-		uart.rx_callback = rx;
+		if (tx_ready && !uart.tx_ready_callback)
+			uart.tx_ready_callback = tx_ready;
+		if (rx && !uart.rx_callback)
+			uart.rx_callback = rx;
 	)
 }
-
-//TODO RX
 
 void uart_init(void)
 {
@@ -88,8 +105,8 @@ void uart_init(void)
 	IF_UART(
 		UBRR0 = UBRRVAL;
 		UCSR0A = (1 << TXC0) | (!!(USE_2X) << U2X0) | (0 << MPCM0);
-		UCSR0B = (0 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |
-			 (0 << RXEN0) | (1 << TXEN0) |
+		UCSR0B = (1 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |
+			 (1 << RXEN0) | (1 << TXEN0) |
 			 (0 << UCSZ02);
 		UCSR0C = (0 << UMSEL01) | (0 << UMSEL00) |
 			 (0 << UPM01) | (0 << UPM00) |
