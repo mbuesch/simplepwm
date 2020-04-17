@@ -20,6 +20,7 @@
 
 #include "compat.h"
 #include "debug.h"
+#include "uart.h"
 #include "main.h"
 #include "util.h"
 #include "pwm.h"
@@ -257,6 +258,7 @@ int _mainfunc main(void)
 
 	ports_init();
 	power_reduction(false);
+	uart_init();
 	debug_init();
 	battery_init();
 

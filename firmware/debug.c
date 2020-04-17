@@ -1,5 +1,5 @@
 /*
- * Debugging UART interface
+ * Debugging interface
  *
  * Copyright (c) 2020 Michael Buesch <m@bues.ch>
  *
@@ -22,17 +22,11 @@
 #include "debug.h"
 #include "main.h"
 #include "util.h"
+#include "uart.h"
 
 #include <stdio.h>
 
 #if DEBUG && IS_ATMEGAx8
-
-
-#define BAUDRATE	19200ul
-
-#define USE_2X		(((uint64_t)F_CPU % (8ull * BAUDRATE)) < \
-			 ((uint64_t)F_CPU % (16ull * BAUDRATE)))
-#define UBRRVAL		((uint64_t)F_CPU / ((USE_2X ? 8ull : 16ull) * BAUDRATE))
 
 
 static struct {
@@ -47,7 +41,7 @@ static struct {
 static void tx_next_byte(void)
 {
 	if (dbg.ringbuf_used) {
-		UDR0 = dbg.ringbuf[dbg.ringbuf_out];
+		uart_tx_byte(dbg.ringbuf[dbg.ringbuf_out]);
 		if (dbg.ringbuf_out >= ARRAY_SIZE(dbg.ringbuf) - 1u)
 			dbg.ringbuf_out = 0u;
 		else
@@ -55,15 +49,15 @@ static void tx_next_byte(void)
 		dbg.ringbuf_used--;
 	}
 	if (!dbg.ringbuf_used)
-		UCSR0B &= (uint8_t)~(1 << UDRIE0);
+		uart_tx_enable(false);
 }
 
-ISR(USART_UDRE_vect)
+static void debug_tx_ready_handler(void)
 {
 	tx_next_byte();
 }
 
-static void debug_ringbuf_putbyte(uint8_t b)
+static void debug_ringbuf_putbyte(uint8_t data)
 {
 	uint8_t irq_state;
 
@@ -73,16 +67,16 @@ static void debug_ringbuf_putbyte(uint8_t b)
 	irq_state = irq_disable_save();
 
 	if (dbg.ringbuf_used < ARRAY_SIZE(dbg.ringbuf)) {
-		dbg.ringbuf[dbg.ringbuf_in] = b;
-		if (dbg.ringbuf_in >= ARRAY_SIZE(dbg.ringbuf) - 1)
+		dbg.ringbuf[dbg.ringbuf_in] = data;
+		if (dbg.ringbuf_in >= ARRAY_SIZE(dbg.ringbuf) - 1u)
 			dbg.ringbuf_in = 0u;
 		else
 			dbg.ringbuf_in++;
 		dbg.ringbuf_used++;
 	}
 
-	UCSR0B |= 1 << UDRIE0;
-	if (UCSR0A & (1 << UDRE0))
+	uart_tx_enable(true);
+	if (uart_tx_ready())
 		tx_next_byte();
 
 	irq_restore(irq_state);
@@ -117,7 +111,7 @@ void debug_prepare_deep_sleep(void)
 
 	dprintf("Entering deep sleep\r\n");
 	while (dbg.ringbuf_used) {
-		if (UCSR0A & (1 << UDRE0))
+		if (uart_tx_ready())
 			tx_next_byte();
 	}
 	_delay_us(300);
@@ -125,15 +119,7 @@ void debug_prepare_deep_sleep(void)
 
 void debug_init(void)
 {
-	UBRR0 = UBRRVAL;
-	UCSR0A = (1 << TXC0) | (!!(USE_2X) << U2X0) | (0 << MPCM0);
-	UCSR0B = (0 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |
-		 (0 << RXEN0) | (1 << TXEN0) |
-		 (0 << UCSZ02);
-	UCSR0C = (0 << UMSEL01) | (0 << UMSEL00) |
-		 (0 << UPM01) | (0 << UPM00) |
-		 (1 << USBS0) |
-		 (1 << UCSZ01) | (1 << UCSZ00);
+	uart_register_callbacks(debug_tx_ready_handler, NULL);
 
 	stdout = &debug_fstream;
 	stderr = &debug_fstream;

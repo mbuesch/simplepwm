@@ -44,6 +44,7 @@ SRCS			:= \
 			outputsp.c \
 			potentiometer.c \
 			pwm.c \
+			uart.c \
 			watchdog.c
 
 GEN_SRCS		:=
