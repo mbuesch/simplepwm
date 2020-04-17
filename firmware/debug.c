@@ -41,7 +41,8 @@ static struct {
 static void tx_next_byte(void)
 {
 	if (dbg.ringbuf_used) {
-		uart_tx_byte(dbg.ringbuf[dbg.ringbuf_out]);
+		uart_tx_byte(dbg.ringbuf[dbg.ringbuf_out],
+			     UART_CHAN_7BIT);
 		if (dbg.ringbuf_out >= ARRAY_SIZE(dbg.ringbuf) - 1u)
 			dbg.ringbuf_out = 0u;
 		else
@@ -49,7 +50,7 @@ static void tx_next_byte(void)
 		dbg.ringbuf_used--;
 	}
 	if (!dbg.ringbuf_used)
-		uart_tx_enable(false);
+		uart_tx_enable(false, UART_CHAN_7BIT);
 }
 
 static void debug_tx_ready_handler(void)
@@ -75,8 +76,8 @@ static void debug_ringbuf_putbyte(uint8_t data)
 		dbg.ringbuf_used++;
 	}
 
-	uart_tx_enable(true);
-	if (uart_tx_ready())
+	uart_tx_enable(true, UART_CHAN_7BIT);
+	if (uart_tx_is_ready(UART_CHAN_7BIT))
 		tx_next_byte();
 
 	irq_restore(irq_state);
@@ -111,7 +112,7 @@ void debug_prepare_deep_sleep(void)
 
 	dprintf("Entering deep sleep\r\n");
 	while (dbg.ringbuf_used) {
-		if (uart_tx_ready())
+		if (uart_tx_is_ready(UART_CHAN_7BIT))
 			tx_next_byte();
 	}
 	_delay_us(300);
@@ -119,7 +120,7 @@ void debug_prepare_deep_sleep(void)
 
 void debug_init(void)
 {
-	uart_register_callbacks(debug_tx_ready_handler, NULL);
+	uart_register_callbacks(debug_tx_ready_handler, NULL, UART_CHAN_7BIT);
 
 	stdout = &debug_fstream;
 	stderr = &debug_fstream;

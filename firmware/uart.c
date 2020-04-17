@@ -23,6 +23,33 @@
 #include "uart.h"
 
 
+/* On wire data format:
+ *
+ * 7 bit channel transmission:
+ *  Data byte:
+ *  [0 x x x x x x x]
+ *   ^ ^ ^ ^ ^ ^ ^ ^
+ *   | |...........|
+ *   | |           data byte 0
+ *   | data byte 7
+ *   constant 0
+ *
+ * 8 bit channel transmission:
+ *  First data byte:              Second data byte:
+ *  [1 0 y y x x x x]             [1 1 y y x x x x]
+ *   ^ ^ ^ ^ ^ ^ ^ ^               ^ ^ ^ ^ ^ ^ ^ ^
+ *   | | | | |.....|               | | | | |.....|
+ *   | | | | |     data byte 0     | | | | |     data byte 4
+ *   | | | | data byte 3           | | | | data byte 7
+ *   | | | channel select A        | | | reserved (0)
+ *   | | channel select B          | | reserved (0)
+ *   | constant 0                  | constant 1
+ *   constant 1                    constant 1
+ *
+ * constraint:
+ *  Currently only channel select 00 is supported.
+ */
+
 #define BAUDRATE	19200ul
 
 #define USE_2X		(((uint64_t)F_CPU % (8ull * BAUDRATE)) < \
@@ -30,42 +57,113 @@
 #define UBRRVAL		((uint64_t)F_CPU / ((USE_2X ? 8ull : 16ull) * BAUDRATE))
 
 
+#define FLG_8BIT	0x80u /* 8-bit data nibble */
+#define FLG_8BIT_UPPER	0x40u /* 8-bit upper data nibble */
+#define FLG_8BIT_CHANB	0x20u /* Channel selection A */
+#define FLG_8BIT_CHANA	0x10u /* Channel selection B */
+
+#define MSK_4BIT	0x0Fu /* data nibble */
+#define MSK_7BIT	0x7Fu
+
+
 static struct {
-	uart_txready_cb_t tx_ready_callback;
-	uart_rx_cb_t rx_callback;
+	struct {
+		bool enabled[UART_NR_CHAN];
+		bool upper;
+		uint8_t buf;
+		uart_txready_cb_t ready_callback[UART_NR_CHAN];
+	} tx;
+	struct {
+		bool upper;
+		uint8_t buf;
+		uart_rx_cb_t callback[UART_NR_CHAN];
+	} rx;
 } uart;
 
 
-bool uart_tx_ready(void)
+bool uart_tx_is_ready(enum uart_chan chan)
 {
 	IF_UART(
-		return !!(UCSR0A & (1 << UDRE0));
+		return !!(UCSR0A & (1 << UDRE0)) &&
+		       !uart.tx.upper;
 	)
 	return false;
+
 }
 
-void uart_tx_byte(uint8_t data)
+void uart_tx_byte(uint8_t data, enum uart_chan chan)
 {
-	IF_UART(
-		UDR0 = data;
-	)
+	if (USE_UART) {
+		if (chan == UART_CHAN_7BIT) {
+			uart.tx.upper = false;
+			data = (uint8_t)(data & MSK_7BIT);
+			memory_barrier();
+			IF_UART(UDR0 = data);
+		} else {
+			uart.tx.upper = true;
+			uart.tx.buf = data;
+			data = (uint8_t)(data & MSK_4BIT);
+			data |= FLG_8BIT;
+			memory_barrier();
+			IF_UART(UDR0 = data);
+		}
+	}
 }
 
-void uart_tx_enable(bool enable)
+static void check_tx_disable(void)
 {
-	IF_UART(
-		if (enable)
-			UCSR0B |= 1 << UDRIE0;
-		else
-			UCSR0B &= (uint8_t)~(1 << UDRIE0);
-	)
+	bool all_disabled = true;
+	uint8_t i;
+
+	if (USE_UART) {
+		for (i = 0u; i < UART_NR_CHAN; i++)
+			all_disabled &= !uart.tx.enabled[i];
+
+		if (!uart.tx.upper && all_disabled) {
+			IF_UART(UCSR0B &= (uint8_t)~(1 << UDRIE0));
+		} else {
+			IF_UART(UCSR0B |= 1 << UDRIE0);
+		}
+	}
+}
+
+void uart_tx_enable(bool enable, enum uart_chan chan)
+{
+	uint8_t irq_state;
+
+	if (USE_UART) {
+		irq_state = irq_disable_save();
+
+		uart.tx.enabled[chan] = enable;
+		check_tx_disable();
+
+		irq_restore(irq_state);
+	}
 }
 
 #if USE_UART
 ISR(USART_UDRE_vect)
 {
-	if (uart.tx_ready_callback)
-		uart.tx_ready_callback();
+	uint8_t data;
+	uint8_t i;
+
+	if (uart.tx.upper) {
+		uart.tx.upper = false;
+		data = uart.tx.buf >> 4;
+		data |= FLG_8BIT;
+		data |= FLG_8BIT_UPPER;
+		UDR0 = data;
+	}
+
+	for (i = 0u; i < UART_NR_CHAN; i++) {
+		if (uart_tx_is_ready(i)) {
+			if (uart.tx.ready_callback[i])
+				uart.tx.ready_callback[i]();
+		} else
+			break;
+	}
+
+	check_tx_disable();
 }
 #endif /* USE_UART */
 
@@ -80,26 +178,47 @@ ISR(USART_RX_vect)
 
 	if ((status & ((1u << FE0) | (1u << DOR0) | (1u << UPE0))) == 0u)
 	{
-		if (uart.rx_callback)
-			uart.rx_callback(data);
-	}
+		if (data & FLG_8BIT) {
+			if (uart.rx.upper) {
+				uart.rx.upper = false;
+				if (data & FLG_8BIT_UPPER) {
+					data = (uint8_t)(data << 4);
+					data = (uint8_t)(data | (uart.rx.buf & MSK_4BIT));
+					if (uart.rx.callback[UART_CHAN_8BIT_0])
+						uart.rx.callback[UART_CHAN_8BIT_0](data);
+				}
+			} else {
+				uart.rx.upper = true;
+				uart.rx.buf = data;
+			}
+		} else {
+			uart.rx.upper = false;
+			if (uart.rx.callback[UART_CHAN_7BIT])
+				uart.rx.callback[UART_CHAN_7BIT](data);
+		}
+	} else
+		uart.rx.upper = false;
 }
 #endif /* USE_UART */
 
-void uart_register_callbacks(uart_txready_cb_t tx_ready, uart_rx_cb_t rx)
+void uart_register_callbacks(uart_txready_cb_t tx_ready,
+			     uart_rx_cb_t rx,
+			     enum uart_chan chan)
 {
 	IF_UART(
-		if (tx_ready && !uart.tx_ready_callback)
-			uart.tx_ready_callback = tx_ready;
-		if (rx && !uart.rx_callback)
-			uart.rx_callback = rx;
+		uart.tx.ready_callback[chan] = tx_ready;
+		uart.rx.callback[chan] = rx;
 	)
 }
 
 void uart_init(void)
 {
-	uart.tx_ready_callback = NULL;
-	uart.rx_callback = NULL;
+	uint8_t i;
+
+	for (i = 0u; i < UART_NR_CHAN; i++) {
+		uart.tx.ready_callback[i] = NULL;
+		uart.rx.callback[i] = NULL;
+	}
 	memory_barrier();
 
 	IF_UART(

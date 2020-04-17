@@ -12,13 +12,26 @@
 #endif
 
 
+enum uart_chan {
+	UART_CHAN_8BIT_0,	/* 8 bit communication channel 0 */
+#if 0
+	UART_CHAN_8BIT_1,	/* 8 bit communication channel 1 */
+	UART_CHAN_8BIT_2,	/* 8 bit communication channel 2 */
+	UART_CHAN_8BIT_3,	/* 8 bit communication channel 3 */
+#endif
+	UART_CHAN_7BIT,		/* 7 bit communication channel */
+	UART_NR_CHAN,
+};
+
 typedef void (*uart_txready_cb_t)(void);
 typedef void (*uart_rx_cb_t)(uint8_t data);
 
-bool uart_tx_ready(void);
-void uart_tx_byte(uint8_t data);
-void uart_tx_enable(bool enable);
-void uart_register_callbacks(uart_txready_cb_t tx_ready, uart_rx_cb_t rx);
+bool uart_tx_is_ready(enum uart_chan chan);
+void uart_tx_byte(uint8_t data, enum uart_chan chan);
+void uart_tx_enable(bool enable, enum uart_chan chan);
+void uart_register_callbacks(uart_txready_cb_t tx_ready,
+			     uart_rx_cb_t rx,
+			     enum uart_chan chan);
 void uart_init(void);
 
 #endif /* UART_H_ */
