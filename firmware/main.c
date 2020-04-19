@@ -159,7 +159,7 @@ static void set_PRR(bool full_powerdown)
 # ifdef PRADC
 		^ (1u << PRADC) /* enable ADC */
 # endif
-# if defined(PRUSART0) && DEBUG
+# if defined(PRUSART0) && USE_UART
 		^ (1u << PRUSART0) /* enable USART */
 # endif
 		);
