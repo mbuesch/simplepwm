@@ -49,6 +49,9 @@
 /* Always-inline function attribute. */
 #define alwaysinline		inline __attribute__((__always_inline__))
 
+/* Packed structure. */
+#define _packed			__attribute__((__packed__))
+
 /* Build-time assertion.
  * 'cond' must be a compile-time constant.
  * Build will fail, if 'cond' is false.
@@ -101,5 +104,20 @@ static alwaysinline void irq_restore(uint8_t sreg_flags)
 	SREG = sreg_flags;
 }
 
+typedef uint16_t le16_t;
+
+/* Convert native endianness to little-endian 16-bit. */
+static inline le16_t to_le16(uint16_t x)
+{
+	/* Architecture is little-endian. */
+	return (le16_t)x;
+}
+
+/* Convert little-endian 16-bit to native endianness. */
+static inline uint16_t from_le16(le16_t x)
+{
+	/* Architecture is little-endian. */
+	return (uint16_t)x;
+}
 
 #endif /* UTIL_H_ */
