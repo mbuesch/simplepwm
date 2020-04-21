@@ -36,6 +36,7 @@ SRCS			:= \
 			adc.c \
 			battery.c \
 			color.c \
+			crc.c \
 			curve.c \
 			debug.c \
 			filter.c \
