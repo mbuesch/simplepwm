@@ -43,6 +43,8 @@
 
 #define SP_PERCENT(x)		((unsigned int)(((uint32_t)(x) * 100u) / UINT16_MAX))
 
+#define HSL_ENABLED		(USE_HSL && NR_PWM == 3u)
+
 
 static struct {
 	uint16_t hsl[NR_PWM];
@@ -52,18 +54,46 @@ static struct {
 } outsp;
 
 
+/* Get an output signal (PWM) setpoint.
+ * hsl: Get the HSL setpoint instead of RGB, if available.
+ */
+uint16_t output_setpoint_get(uint8_t index, bool hsl)
+{
+	if (index < NR_PWM) {
+		if (hsl) {
+			if (HSL_ENABLED)
+				return outsp.hsl[index];
+		} else
+			return pwm_sp_get(IF_MULTIPWM(index));
+	}
+	return 0u;
+}
+
 /* Set the output signal (PWM) setpoint.
  * Interrupts shall be disabled before calling this function. */
 void output_setpoint_set(IF_MULTIPWM(uint8_t index,) uint16_t setpoint)
 {
 	uint8_t i;
 
-	if (USE_HSL && NR_PWM == 3u) {
+	if (HSL_ENABLED) {
 		/* Set all RGB PWM output signals
 		 * that have been converted from HSL. */
-		for (i = 0u; i < NR_PWM; i++)
-			pwm_sp_set(IF_MULTIPWM(i,) outsp.rgb[i]);
+		for (i = 0u; i < NR_PWM; i++) {
+			/* Use the converted RGB setpoint. */
+			setpoint = outsp.rgb[i];
+
+			/* If the battery is running low, force setpoint to zero. */
+			if (battery_voltage_is_critical())
+				setpoint = 0u;
+
+			/* Set the PWM output signal. */
+			pwm_sp_set(IF_MULTIPWM(i,) setpoint);
+		}
 	} else {
+		/* If the battery is running low, force setpoint to zero. */
+		if (battery_voltage_is_critical())
+			setpoint = 0u;
+
 		/* Set the PWM output signal. */
 		pwm_sp_set(IF_MULTIPWM(index,) setpoint);
 	}
@@ -84,7 +114,7 @@ void output_setpoint_transform(IF_MULTIPWM(uint8_t index,)
 	IF_SINGLEPWM(uint8_t index = 0u);
 
 	/* Transform the value according to the transformation curve. */
-	if (USE_HSL && NR_PWM == 3u) {
+	if (HSL_ENABLED) {
 		switch (index) {
 		default:
 		case H:
@@ -114,7 +144,13 @@ void output_setpoint_transform(IF_MULTIPWM(uint8_t index,)
 				ADC_FILTER_SHIFT,
 				raw_sp);
 
-	if (USE_HSL && NR_PWM == 3u) {
+	/* If the battery is running low, force setpoints to zero. */
+	if (battery_voltage_is_critical()) {
+		raw_sp = 0u;
+		filt_sp = 0u;
+	}
+
+	if (HSL_ENABLED) {
 		/* Convert the HSL setpoints to RGB. */
 		outsp.hsl[index] = filt_sp;
 		hsl2rgb(&outsp.rgb[R], &outsp.rgb[G], &outsp.rgb[B],

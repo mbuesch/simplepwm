@@ -4,6 +4,7 @@
 #include "pwm.h"
 
 
+uint16_t output_setpoint_get(uint8_t index, bool hsl);
 void output_setpoint_set(IF_MULTIPWM(uint8_t index,) uint16_t setpoint);
 
 void output_setpoint_transform(IF_MULTIPWM(uint8_t index,)
