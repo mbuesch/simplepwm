@@ -32,8 +32,18 @@ uint16_t lp_filter_run(struct lp_filter *lp,
 	uint32_t buf;
 
 	buf = lp->filter_buf;
-	buf = add_sat_u32((buf - (buf >> shift)), in);
+	if (lp->initialized)
+		buf = add_sat_u32((buf - (buf >> shift)), in);
+	else
+		buf = (uint32_t)in << shift;
 	lp->filter_buf = buf;
+	lp->initialized = true;
 
 	return lim_u16(buf >> shift);
+}
+
+void lp_filter_reset(struct lp_filter *lp)
+{
+	lp->filter_buf = 0u;
+	lp->initialized = false;
 }

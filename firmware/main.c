@@ -159,7 +159,6 @@ static void power_reduction(bool full)
 		 * Enable used modules. */
 		set_PRR(false);
 		potentiometer_enable(true);
-		output_setpoint_init();
 		adc_init(true);
 		pwm_init(true);
 	}
@@ -220,6 +219,7 @@ int _mainfunc main(void)
 	bool go_deep;
 
 	ports_init();
+	output_setpoint_init();
 	power_reduction(false);
 	uart_init();
 	debug_init();
