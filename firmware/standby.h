@@ -10,7 +10,7 @@ enum standby_source {
 	NR_STANDBY_SRC, /* Number of standby sources. */
 };
 
-void set_standby_possible(enum standby_source source, bool standby_possible);
+void set_standby_suppress(enum standby_source source, bool suppress);
 void standby_handle_watchdog_interrupt(bool wakeup_from_standby);
 bool standby_is_desired_now(void);
 

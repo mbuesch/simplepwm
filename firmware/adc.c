@@ -313,7 +313,7 @@ ISR(ADC_vect)
 					go_standby = allow_standby;
 					for (i = 0u; i < NR_ADC; i++)
 						go_standby &= adc.standby_ready[i];
-					set_standby_possible(STANDBY_SRC_ADC, go_standby);
+					set_standby_suppress(STANDBY_SRC_ADC, !go_standby);
 				}
 			}
 		}

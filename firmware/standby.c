@@ -35,16 +35,16 @@
 #define DEEP_SLEEP_DELAY_AFTER_ACTIVE_MS	300u /* milliseconds */
 
 
-enum standby_possible {
-	STANDBY_POSSIBLE_UNKNOWN,
-	STANDBY_POSSIBLE_YES,
-	STANDBY_POSSIBLE_NO,
+enum standby_suppress {
+	STANDBY_SUPPRESS_UNKNOWN,
+	STANDBY_SUPPRESS_YES,
+	STANDBY_SUPPRESS_NO,
 };
 
 static struct {
 	uint16_t sys_active_ms;
 	uint16_t delay_timer_ms;
-	enum standby_possible possible[NR_STANDBY_SRC];
+	enum standby_suppress suppress[NR_STANDBY_SRC];
 	bool was_possible;
 } standby;
 
@@ -58,17 +58,17 @@ static bool standby_is_possible(void)
 	if (USE_DEEP_SLEEP) {
 		possible = true;
 		for (i = 0u; i < NR_STANDBY_SRC; i++)
-			possible &= standby.possible[i] == STANDBY_POSSIBLE_YES;
+			possible &= standby.suppress[i] == STANDBY_SUPPRESS_NO;
 	} else
 		possible = false;
 
 	return possible;
 }
 
-void set_standby_possible(enum standby_source source, bool standby_possible)
+void set_standby_suppress(enum standby_source source, bool suppress)
 {
 	if (USE_DEEP_SLEEP)
-		standby.possible[source] = standby_possible;
+		standby.suppress[source] = suppress ? STANDBY_SUPPRESS_YES : STANDBY_SUPPRESS_NO;
 }
 
 /* Watchdog timer interrupt service routine
@@ -83,10 +83,10 @@ void standby_handle_watchdog_interrupt(bool wakeup_from_standby)
 
 		if (wakeup_from_standby) {
 			/* We just woke up from standby.
-			 * Reset active time and reset all possible-flags. */
+			 * Reset active time and reset all suppress-flags. */
 			standby.sys_active_ms = 0u;
 			for (i = 0u; i < NR_STANDBY_SRC; i++)
-				standby.possible[i] = STANDBY_POSSIBLE_UNKNOWN;
+				standby.suppress[i] = STANDBY_SUPPRESS_UNKNOWN;
 		} else {
 			/* The system is active.
 			 * Increment the active time. */
@@ -116,10 +116,10 @@ static void update_watchdog_standby(void)
 		wd_standby = true;
 		for (i = 0u; i < NR_STANDBY_SRC; i++) {
 			/* If any source state is still unknown, do not update WD state. */
-			set_wd_standby &= standby.possible[i] != STANDBY_POSSIBLE_UNKNOWN;
+			set_wd_standby &= standby.suppress[i] != STANDBY_SUPPRESS_UNKNOWN;
 
 			/* WD standby, if all sources are Ok for standby. */
-			wd_standby &= standby.possible[i] == STANDBY_POSSIBLE_YES;
+			wd_standby &= standby.suppress[i] == STANDBY_SUPPRESS_NO;
 		}
 
 		if (set_wd_standby)
