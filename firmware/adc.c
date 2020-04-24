@@ -28,6 +28,7 @@
 #include "battery.h"
 #include "arithmetic.h"
 #include "outputsp.h"
+#include "standby.h"
 
 
 /* ADC configuration. */
@@ -311,7 +312,7 @@ ISR(ADC_vect)
 					go_standby = allow_standby;
 					for (i = 0u; i < NR_ADC; i++)
 						go_standby &= adc.standby_ready[i];
-					system_set_standby(go_standby);
+					set_standby_possible(STANDBY_SRC_ADC, go_standby);
 				}
 			}
 		}

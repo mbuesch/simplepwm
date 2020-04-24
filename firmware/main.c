@@ -30,12 +30,11 @@
 #include "potentiometer.h"
 #include "arithmetic.h"
 #include "outputsp.h"
+#include "adc.h"
+#include "standby.h"
 
 
 static struct {
-	uint16_t sys_active_ms;
-	uint16_t deep_sleep_delay_timer_ms;
-	bool deep_sleep_request;
 	bool deep_sleep_active;
 } system;
 
@@ -45,11 +44,6 @@ static struct {
 #endif
 
 
-/* Delay before entering deep sleep mode. */
-#define DEEP_SLEEP_DELAY_MS			5000u /* milliseconds */
-/* Use the deep sleep delay after this many active microseconds. */
-#define DEEP_SLEEP_DELAY_AFTER_ACTIVE_MS	300u /* milliseconds */
-
 /* Main loop debug indicator. */
 #define USE_MAINLOOPDBG		(DEBUG && IS_ATMEGAx8)
 #if USE_MAINLOOPDBG
@@ -57,25 +51,6 @@ static struct {
 # define MAINLOOPDBG_BIT	2u
 #endif
 
-
-/* If standby, enter deep sleep in the next main loop iteration.
- * Interrupts shall be disabled before calling this function. */
-void system_set_standby(bool standby)
-{
-	if (USE_DEEP_SLEEP) {
-		watchdog_set_standby(standby);
-
-		/* If we are just entering deep sleep
-		 * and the system has been running for some time
-		 * then delay the deep sleep for a bit. */
-		if (standby &&
-		    !system.deep_sleep_request &&
-		    system.sys_active_ms >= DEEP_SLEEP_DELAY_AFTER_ACTIVE_MS)
-			system.deep_sleep_delay_timer_ms = DEEP_SLEEP_DELAY_MS;
-
-		system.deep_sleep_request = standby;
-	}
-}
 
 /* Initialize I/O ports. */
 static void ports_init(void)
@@ -193,7 +168,7 @@ static void power_reduction(bool full)
 /* A watchdog interrupt just occurred. */
 void system_handle_watchdog_interrupt(void)
 {
-	uint16_t sys_active_ms;
+	bool wakeup_from_standby;
 
 	if (USE_DEEP_SLEEP) {
 		if (system.deep_sleep_active) {
@@ -201,24 +176,12 @@ void system_handle_watchdog_interrupt(void)
 			 * Re-enable all used peripherals. */
 			system.deep_sleep_active = false;
 			power_reduction(false);
-
-			sys_active_ms = 0u;
+			wakeup_from_standby = true;
 		} else
-			sys_active_ms = watchdog_interval_ms();
+			wakeup_from_standby = false;
 
-		/* The system is active.
-		 * Increment the active time. */
-		system.sys_active_ms = add_sat_u16(
-			system.sys_active_ms,
-			sys_active_ms);
+		standby_handle_watchdog_interrupt(wakeup_from_standby);
 
-		if (system.deep_sleep_request) {
-			/* A deep sleep is pending.
-			 * Decrement the delay timer. */
-			system.deep_sleep_delay_timer_ms = sub_sat_u16(
-				system.deep_sleep_delay_timer_ms,
-				sys_active_ms);
-		}
 	}
 
 	battery_handle_watchdog_interrupt();
@@ -273,15 +236,9 @@ int _mainfunc main(void)
 		memory_barrier();
 		go_deep = false;
 		if (USE_DEEP_SLEEP) {
-			if ((system.deep_sleep_request &&
-			     system.deep_sleep_delay_timer_ms == 0u) ||
-			    (battery_voltage_is_critical() &&
-			     !adc_battery_measurement_active())) {
-
+			if (standby_is_desired_now()) {
 				debug_prepare_deep_sleep();
 
-				system.sys_active_ms = 0u;
-				system.deep_sleep_request = false;
 				system.deep_sleep_active = true;
 				go_deep = true;
 			} else
