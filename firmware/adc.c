@@ -57,7 +57,8 @@
 # error
 #endif
 
-#define ADC_DISCARD		(USE_BAT_MONITOR || (NR_ADC > 1))
+/* Sample discard support. */
+#define USE_ADC_DISCARD		(USE_BAT_MONITOR || (NR_ADC > 1))
 
 
 static struct {
@@ -220,7 +221,7 @@ ISR(ADC_vect)
 	/* Read the analog input */
 	raw_adc = ADC;
 
-	if (!ADC_DISCARD || adc.discard == 0) {
+	if (!USE_ADC_DISCARD || adc.discard == 0) {
 		if (USE_BAT_MONITOR && adc.battery_meas_running) {
 			/* Battery voltage measurement mode. */
 
