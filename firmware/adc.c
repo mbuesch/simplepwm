@@ -79,6 +79,11 @@ static struct {
 } adc;
 
 
+static bool adc_hw_enabled(void)
+{
+	return !!(ADCSRA & (1 << ADEN));
+}
+
 #define ADC_MUXMODE_NORM	0u
 #define ADC_MUXMODE_BAT		1u
 
@@ -179,7 +184,7 @@ void adc_request_battery_measurement(void)
 {
 	if (USE_BAT_MONITOR) {
 		adc.battery_meas_requested = true;
-		if (ADCSRA & (1 << ADEN)) {
+		if (adc_hw_enabled()) {
 			/* The ADC will be reconfigured by the completion
 			 * interrupt of the currently running conversion. */
 		} else {
