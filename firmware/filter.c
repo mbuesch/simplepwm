@@ -42,6 +42,14 @@ uint16_t lp_filter_run(struct lp_filter *lp,
 	return lim_u16(buf >> shift);
 }
 
+void lp_filter_set(struct lp_filter *lp,
+		   uint8_t shift,
+		   uint16_t in)
+{
+	lp->filter_buf = (uint32_t)in << shift;
+	lp->initialized = true;
+}
+
 void lp_filter_reset(struct lp_filter *lp)
 {
 	lp->filter_buf = 0u;
