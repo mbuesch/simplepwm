@@ -174,6 +174,7 @@ void system_handle_watchdog_interrupt(void)
 			/* We just woke up from deep sleep.
 			 * Re-enable all used peripherals. */
 			system.deep_sleep_active = false;
+			output_setpoint_wakeup();
 			power_reduction(false);
 			wakeup_from_standby = true;
 		} else

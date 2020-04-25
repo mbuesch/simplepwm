@@ -177,6 +177,16 @@ void output_setpoint_transform(IF_MULTIPWM(uint8_t index,)
 	*filt_setpoint = filt_sp;
 }
 
+void output_setpoint_wakeup(void)
+{
+	uint8_t i;
+
+	if (USE_DEEP_SLEEP) {
+		for (i = 0u; i < NR_PWM; i++)
+			lp_filter_set(&outsp.filter[i], ADC_FILTER_SHIFT, 0u);
+	}
+}
+
 void output_setpoint_init(void)
 {
 	uint8_t i;

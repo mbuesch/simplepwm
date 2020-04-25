@@ -12,6 +12,7 @@ void output_setpoint_transform(IF_MULTIPWM(uint8_t index,)
 			       uint16_t *raw_setpoint,
 			       uint16_t *filt_setpoint);
 
+void output_setpoint_wakeup(void);
 void output_setpoint_init(void);
 
 #endif /* OUTPUTSP_H_ */
