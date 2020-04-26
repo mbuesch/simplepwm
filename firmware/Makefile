@@ -44,6 +44,7 @@ SRCS			:= \
 			movingavg.c \
 			outputsp.c \
 			potentiometer.c \
+			pcint.c \
 			pwm.c \
 			standby.c \
 			uart.c \
