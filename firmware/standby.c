@@ -20,6 +20,7 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "standby.h"
 #include "util.h"
 #include "watchdog.h"
@@ -67,29 +68,45 @@ static bool standby_is_possible(void)
 
 void set_standby_suppress(enum standby_source source, bool suppress)
 {
-	if (USE_DEEP_SLEEP)
-		standby.suppress[source] = suppress ? STANDBY_SUPPRESS_YES : STANDBY_SUPPRESS_NO;
+	if (USE_DEEP_SLEEP) {
+		if (source < NR_STANDBY_SRC) {
+			if (suppress)
+				standby.suppress[source] = STANDBY_SUPPRESS_YES;
+			else
+				standby.suppress[source] = STANDBY_SUPPRESS_NO;
+		}
+	}
+}
+
+/* Handle wake up from deep sleep.
+ * Interrupts shall be disabled before calling this function. */
+void standby_handle_deep_sleep_wakeup(void)
+{
+	uint8_t i;
+
+	if (USE_DEEP_SLEEP) {
+		/* We just woke up from standby.
+		 * Reset active time and reset all suppress-flags. */
+		standby.sys_active_ms = 0u;
+		for (i = 0u; i < NR_STANDBY_SRC; i++)
+			standby.suppress[i] = STANDBY_SUPPRESS_UNKNOWN;
+	}
 }
 
 /* Watchdog timer interrupt service routine
- * for standby handling. */
+ * for standby handling.
+ * Interrupts shall be disabled before calling this function. */
 void standby_handle_watchdog_interrupt(bool wakeup_from_standby)
 {
 	uint16_t sys_active_rel_ms;
-	uint8_t i;
 
 	if (USE_DEEP_SLEEP) {
 		sys_active_rel_ms = watchdog_interval_ms();
 
-		if (wakeup_from_standby) {
-			/* We just woke up from standby.
-			 * Reset active time and reset all suppress-flags. */
-			standby.sys_active_ms = 0u;
-			for (i = 0u; i < NR_STANDBY_SRC; i++)
-				standby.suppress[i] = STANDBY_SUPPRESS_UNKNOWN;
-		} else {
+		if (!wakeup_from_standby) {
 			/* The system is active.
-			 * Increment the active time. */
+			 * Increment the active time.
+			 * The time is approximate and saturates at 65535 ms. */
 			standby.sys_active_ms = add_sat_u16(standby.sys_active_ms,
 							    sys_active_rel_ms);
 		}

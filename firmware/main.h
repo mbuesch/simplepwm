@@ -36,7 +36,7 @@
 #endif
 
 
-void system_set_standby(bool standby);
+void system_handle_deep_sleep_wakeup(void);
 void system_handle_watchdog_interrupt(void);
 
 #endif /* MAIN_H_ */

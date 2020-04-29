@@ -164,26 +164,35 @@ static void power_reduction(bool full)
 	}
 }
 
+/* Handle wake up from deep sleep.
+ * Interrupts shall be disabled before calling this function. */
+void system_handle_deep_sleep_wakeup(void)
+{
+	if (USE_DEEP_SLEEP) {
+		if (system.deep_sleep_active) {
+			system.deep_sleep_active = false;
+
+			/* Re-enable all used peripherals. */
+			output_setpoint_wakeup();
+			power_reduction(false);
+			standby_handle_deep_sleep_wakeup();
+		}
+	}
+}
+
 /* A watchdog interrupt just occurred. */
 void system_handle_watchdog_interrupt(void)
 {
 	bool wakeup_from_standby;
 
 	if (USE_DEEP_SLEEP) {
-		if (system.deep_sleep_active) {
-			/* We just woke up from deep sleep.
-			 * Re-enable all used peripherals. */
-			system.deep_sleep_active = false;
-			output_setpoint_wakeup();
-			power_reduction(false);
-			wakeup_from_standby = true;
-		} else
-			wakeup_from_standby = false;
-
+		wakeup_from_standby = system.deep_sleep_active;
+		if (wakeup_from_standby) {
+			/* We just woke up from deep sleep. */
+			system_handle_deep_sleep_wakeup();
+		}
 		standby_handle_watchdog_interrupt(wakeup_from_standby);
-
 	}
-
 	battery_handle_watchdog_interrupt();
 }
 

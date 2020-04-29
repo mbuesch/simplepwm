@@ -11,6 +11,7 @@ enum standby_source {
 };
 
 void set_standby_suppress(enum standby_source source, bool suppress);
+void standby_handle_deep_sleep_wakeup(void);
 void standby_handle_watchdog_interrupt(bool wakeup_from_standby);
 bool standby_is_desired_now(void);
 
