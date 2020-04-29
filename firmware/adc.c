@@ -60,6 +60,9 @@
 /* Sample discard support. */
 #define USE_ADC_DISCARD		(USE_BAT_MONITOR || (NR_ADC > 1))
 
+/* Analog pin switching support. */
+#define USE_APIN_SWITCH		0//USE_REMOTE
+
 
 static struct {
 	/* Currently active ADC MUX */
@@ -76,6 +79,8 @@ static struct {
 	uint8_t discard;
 	/* Previous PWM interrupt count state. */
 	uint8_t prev_pwm_count;
+	/* Analog input pin measurement enabled? */
+	bool analogpins_enabled;
 } adc;
 
 
@@ -153,7 +158,15 @@ static void adc_configure(bool enable)
 			/* Discard the first few results to compensate
 			 * for Vbg settling time (1 ms). */
 			adc.discard = 10;
-		} else if (!battery_voltage_is_critical()) {
+		} else if (battery_voltage_is_critical()) {
+			/* Battery voltage is critical and no battery measurement
+			 * has been requested.
+			 * Keep the ADC shut down. */
+		} else if (!adc_analogpins_enabled()) {
+			/* Analog input pins are disabled.
+			 * Keep the ADC shut down. */
+		} else {
+			/* Measure input pins. */
 			/* Configure the MUX to the active input ADC. */
 			adc_configure_mux(ADC_MUXMODE_NORM, adc.index);
 			/* Enable and start ADC; free running; PS = 64; IRQ enabled */
@@ -162,10 +175,6 @@ static void adc_configure(bool enable)
 				 (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0);
 			if (NR_ADC > 1)
 				adc.discard = 1;
-		} else {
-			/* Battery voltage is critical and no battery measurement
-			 * has been requested.
-			 * Keep the ADC shut down. */
 		}
 	}
 }
@@ -191,6 +200,33 @@ void adc_request_battery_measurement(void)
 			/* No conversion currently running. Reconfigure ADC now. */
 			adc_configure(true);
 		}
+	}
+}
+
+/* Get the analogpin measurement state. */
+bool adc_analogpins_enabled(void)
+{
+	if (USE_APIN_SWITCH)
+		return adc.analogpins_enabled;
+	return true;
+}
+
+/* Enable/disable the analog input pin measurement. */
+void adc_analogpins_enable(bool enable)
+{
+	uint8_t irq_state;
+
+	if (USE_APIN_SWITCH) {
+		irq_state = irq_disable_save();
+
+		if (adc.analogpins_enabled != enable) {
+			adc.analogpins_enabled = enable;
+			if (enable && !adc_hw_enabled())
+				adc_configure(true);
+			set_standby_suppress(STANDBY_SRC_ADC, enable);
+		}
+
+		irq_restore(irq_state);
 	}
 }
 
@@ -311,6 +347,9 @@ ISR(ADC_vect)
 				/* Battery measurement requested.
 				 * Reconfigure the ADC for battery measurement. */
 				adc_configure(true);
+			} else if (!adc_analogpins_enabled()) {
+				adc_configure(false);
+				set_standby_suppress(STANDBY_SRC_ADC, false);
 			} else {
 				/* If the PWM is disabled, request deep sleep to save power. */
 				if (USE_DEEP_SLEEP && adc.conv_count >= NR_ADC) {

@@ -222,6 +222,7 @@ int _mainfunc main(void)
 	ports_init();
 	output_setpoint_init();
 	power_reduction(false);
+	adc_analogpins_enable(true);
 	uart_init();
 	debug_init();
 	battery_init();
