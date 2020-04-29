@@ -1,0 +1,467 @@
+#!/usr/bin/env python3
+
+import serial
+import argparse
+import sys
+import time
+import pathlib
+from collections import deque
+
+
+def printDebugDevice(msg):
+	if getattr(printDebugDevice, "enabled", False):
+		print("Device debug:", msg, file=sys.stderr)
+
+def printDebug(msg):
+	if getattr(printDebug, "enabled", False):
+		print("Debug:", msg, file=sys.stderr)
+
+def printInfo(msg):
+	print(msg, file=sys.stderr)
+
+def printWarning(msg):
+	print("WARNING:", msg, file=sys.stderr)
+
+def printError(msg):
+	print("ERROR:", msg, file=sys.stderr)
+
+def crc8(data):
+	P = 0x07
+	crc = 0
+	for d in data:
+		tmp = crc ^ d
+		for i in range(8):
+			if tmp & 0x80:
+				tmp = ((tmp << 1) & 0xFF) ^ P
+			else:
+				tmp = (tmp << 1) & 0xFF
+		crc = tmp
+	return crc ^ 0xFF
+
+class SimplePWMError(Exception):
+	pass
+
+class SimplePWMMsg(object):
+	PAYLOAD_SIZE	= 8
+	SIZE		= 1 + 1 + 1 + PAYLOAD_SIZE + 1
+
+	MSG_MAGIC		= 0xAA
+	MSG_SYNCBYTE		= b"\x00"
+
+	MSGID_NOP		= 0
+	MSGID_ACK		= 1
+	MSGID_NACK		= 2
+	MSGID_PING		= 3
+	MSGID_PONG		= 4
+	MSGID_GET_CONTROL	= 5
+	MSGID_CONTROL		= 6
+	MSGID_GET_SETPOINTS	= 7
+	MSGID_SETPOINTS		= 8
+
+	@staticmethod
+	def _toLe16(value):
+		return bytearray( (value & 0xFF, (value >> 8) & 0xFF, ) )
+
+	@staticmethod
+	def _fromLe16(data):
+		return data[0] | (data[1] << 8)
+
+	@classmethod
+	def parse(cls, data):
+		assert len(data) == cls.SIZE
+		magic, msgId = data[0:2]
+		payload = data[3:-1]
+		crc = data[-1]
+		if magic != cls.MSG_MAGIC:
+			printError("Received corrupted message: Magic byte mismatch.")
+		elif crc8(data[:-1]) != crc:
+			printError("Received corrupted message: CRC mismatch.")
+		else:
+			if msgId == cls.MSGID_NOP:
+				return SimplePWMMsg_Nop._parse(payload)
+			elif msgId == cls.MSGID_ACK:
+				return SimplePWMMsg_Ack._parse(payload)
+			elif msgId == cls.MSGID_NACK:
+				return SimplePWMMsg_Nack._parse(payload)
+			elif msgId == cls.MSGID_PING:
+				return SimplePWMMsg_Ping._parse(payload)
+			elif msgId == cls.MSGID_PONG:
+				return SimplePWMMsg_Pong._parse(payload)
+			elif msgId == cls.MSGID_GET_CONTROL:
+				return SimplePWMMsg_GetControl._parse(payload)
+			elif msgId == cls.MSGID_CONTROL:
+				return SimplePWMMsg_Control._parse(payload)
+			elif msgId == cls.MSGID_GET_SETPOINTS:
+				return SimplePWMMsg_SetSetpoints._parse(payload)
+			elif msgId == cls.MSGID_SETPOINTS:
+				return SimplePWMMsg_Setpoints._parse(payload)
+			else:
+				printError("Received unknown message: %02X." % msgId)
+		return None
+
+	@classmethod
+	def _parse(cls, payload):
+		return cls()
+
+	def __init__(self, msgId):
+		self.msgId = msgId
+
+	def getData(self, payload=None):
+		if payload is None:
+			payload = b"\x00" * self.PAYLOAD_SIZE
+		if len(payload) < self.PAYLOAD_SIZE:
+			payload += b"\x00" * (self.PAYLOAD_SIZE - len(payload))
+		assert len(payload) == self.PAYLOAD_SIZE
+		data = bytearray( (self.MSG_MAGIC, self.msgId, 0, ) ) + payload
+		data.append(crc8(data))
+		assert len(data) == self.SIZE
+		return data
+
+class SimplePWMMsg_Nop(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_NOP
+
+	def __init__(self):
+		super().__init__(self.MSGID)
+
+	def __str__(self):
+		return "NOP()"
+
+class SimplePWMMsg_Ack(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_ACK
+
+	def __init__(self):
+		super().__init__(self.MSGID)
+
+	def __str__(self):
+		return "ACK()"
+
+class SimplePWMMsg_Nack(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_NACK
+
+	def __init__(self):
+		super().__init__(self.MSGID)
+
+	def __str__(self):
+		return "NACK()"
+
+class SimplePWMMsg_Ping(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_PING
+
+	def __init__(self):
+		super().__init__(self.MSGID)
+
+	def __str__(self):
+		return "PING()"
+
+class SimplePWMMsg_Pong(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_PONG
+
+	def __init__(self):
+		super().__init__(self.MSGID)
+
+	def __str__(self):
+		return "PONG()"
+
+class SimplePWMMsg_GetControl(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_GET_CONTROL
+
+	def __init__(self):
+		super().__init__(self.MSGID)
+
+	def __str__(self):
+		return "GET_CONTROL()"
+
+class SimplePWMMsg_Control(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_CONTROL
+
+	MSG_CTLFLG_ANADIS	= 0x01
+
+	@classmethod
+	def _parse(cls, payload):
+		flags = payload[0]
+		return cls(flags)
+
+	def __init__(self, flags):
+		super().__init__(self.MSGID)
+		self.flags = flags
+
+	def getData(self):
+		payload = bytearray( (self.flags, ) )
+		return super().getData(payload)
+
+	def __str__(self):
+		return "CONTROL()"
+
+class SimplePWMMsg_GetSetpoints(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_GET_SETPOINTS
+
+	MSG_GETSPFLG_HSL	= 0x01
+
+	@classmethod
+	def _parse(cls, payload):
+		flags = payload[0]
+		return cls(flags)
+
+	def __init__(self, flags):
+		super().__init__(self.MSGID)
+		self.flags = flags
+
+	def getData(self):
+		payload = bytearray( (self.flags, ) )
+		return super().getData(payload)
+
+	def __str__(self):
+		return "GET_SETPOINTS()"
+
+class SimplePWMMsg_Setpoints(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_SETPOINTS
+
+	MSG_SPFLG_HSL		= 0x01
+
+	@classmethod
+	def _parse(cls, payload):
+		flags = payload[0]
+		nrSp = payload[1]
+		if nrSp > 3:
+			printError("SimplePWMMsg_Setpoints: Received invalid nr_sp.")
+			return None
+		setpoints = [ cls._fromLe16(payload[2 + i*2 : 2 + i*2 + 2])
+			      for i in range(nrSp) ]
+		return cls(flags, setpoints)
+
+	def __init__(self, flags, setpoints):
+		super().__init__(self.MSGID)
+		self.flags = flags
+		self.setpoints = setpoints
+
+	def getData(self):
+		payload = bytearray( (self.flags, len(self.setpoints), ) )
+		for sp in self.setpoints:
+			payload += self._toLe16(sp)
+		return super().getData(payload)
+
+	def __str__(self):
+		return "SETPOINTS()"
+
+class SimplePWM(object):
+	FLG_8BIT	= 0x80 # 8-bit data nibble
+	FLG_8BIT_UPPER	= 0x40 # 8-bit upper data nibble
+	FLG_8BIT_RSV1	= 0x20 # reserved
+	FLG_8BIT_RSV0	= 0x10 # reserved
+
+	MSK_4BIT	= 0x0F # data nibble
+	MSK_7BIT	= 0x7F
+
+	def __init__(self,
+		     port="/dev/ttyUSB0",
+		     timeout=1.0,
+		     dumpDebugStream=False):
+		self.__serial = serial.Serial(port=port,
+					      baudrate=19200,
+					      bytesize=8,
+					      parity=serial.PARITY_NONE,
+					      stopbits=2,
+					      timeout=timeout)
+		self.__timeout = timeout
+		self.__dumpDebugStream = dumpDebugStream
+		self.__rxByte = 0
+		self.__rxBuf = bytearray()
+		self.__rxMsgs = deque()
+		self.__debugBuf = bytearray()
+		self.__wakeup()
+
+	def __synchronize(self):
+		self.__tx_8bit(SimplePWMMsg.MSG_SYNCBYTE * round(SimplePWMMsg.SIZE * 2.5))
+
+	def __wakeup(self):
+		count = 0
+		while True:
+			self.__synchronize()
+			try:
+				self.ping(0.1)
+			except SimplePWMError as e:
+				count += 1
+				if count > 10:
+					raise e
+				continue
+			break
+		printDebug("Connected.")
+
+	def __tx_8bit(self, data):
+#		printDebug("TX:", bytes(data))
+		for d in data:
+			lo = (d & self.MSK_4BIT) | self.FLG_8BIT
+			hi = ((d >> 4) & self.MSK_4BIT) | self.FLG_8BIT | self.FLG_8BIT_UPPER
+			sendBytes = bytes( (lo, hi) )
+			self.__serial.write(sendBytes)
+
+	def __rx_7bit(self, dataByte):
+		self.__debugBuf += dataByte
+		if dataByte == b"\n":
+			if self.__dumpDebugStream:
+				printDebugDevice(self.__debugBuf.decode("ASCII", "ignore").strip())
+			self.__debugBuf.clear()
+
+	def __rx_8bit(self, dataByte):
+#		printDebug("RX:", dataByte)
+		d = dataByte[0]
+		if d & self.FLG_8BIT_UPPER:
+			data = (self.__rxByte & self.MSK_4BIT)
+			data |= (d & self.MSK_4BIT) << 4
+			self.__rxByte = 0
+			self.__rxBuf.append(data)
+			if len(self.__rxBuf) >= SimplePWMMsg.SIZE:
+				rxMsg = SimplePWMMsg.parse(self.__rxBuf)
+				self.__rxBuf.clear()
+				if rxMsg:
+					self.__rx_message(rxMsg)
+		else:
+			self.__rxByte = d
+
+	def __tx_message(self, txMsg):
+		printDebug("TX msg: " + str(txMsg))
+		self.__tx_8bit(txMsg.getData())
+
+	def __rx_message(self, rxMsg):
+		printDebug("RX msg: " + str(rxMsg))
+		self.__rxMsgs.append(rxMsg)
+
+	def __readNext(self, timeout):
+		if timeout < 0:
+			timeout = self.__timeout
+		self.__serial.timeout = timeout
+		dataByte = self.__serial.read(1)
+		if dataByte:
+			if dataByte[0] & self.FLG_8BIT:
+				self.__rx_8bit(dataByte)
+			else:
+				self.__rx_7bit(dataByte)
+
+	def __waitRxMsg(self, msgType=None, timeout=None):
+		if timeout is None:
+			timeout = self.__timeout
+		timeoutEnd = None
+		if timeout >= 0.0:
+			timeoutEnd = time.monotonic() + timeout
+		retMsg = None
+		while retMsg is None:
+			if (timeoutEnd is not None and
+			    time.monotonic() >= timeoutEnd):
+				break
+			self.__readNext(timeout)
+			if msgType is not None:
+				for rxMsg in self.__rxMsgs:
+					if isinstance(rxMsg, msgType):
+						retMsg = rxMsg
+					else:
+						printError("Received unexpected message: " + str(rxMsg))
+			self.__rxMsgs.clear()
+		return retMsg
+
+	def dumpDebugStream(self):
+		self.__dumpDebugStream = True
+		while True:
+			self.__waitRxMsg(timeout=-1)
+
+	def ping(self, timeout=None):
+		self.__tx_message(SimplePWMMsg_Ping())
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Pong, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Ping failed.")
+
+	def getAnalogEn(self, timeout=None):
+		self.__tx_message(SimplePWMMsg_GetControl())
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Control, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to get control info.")
+		return not (rxMsg.flags & rxMsg.MSG_CTLFLG_ANADIS)
+
+	def setAnalogEn(self, enable, timeout=None):
+		self.__tx_message(SimplePWMMsg_GetControl())
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Control, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to get control info.")
+		txMsg = rxMsg
+		if enable:
+			txMsg.flags &= ~txMsg.MSG_CTLFLG_ANADIS
+		else:
+			txMsg.flags |= txMsg.MSG_CTLFLG_ANADIS
+		self.__tx_message(txMsg)
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Ack, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to get acknowledge.")
+
+	def getRGB(self, timeout=None):
+		self.__tx_message(SimplePWMMsg_GetSetpoints(0))
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Setpoints, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to get setpoints.")
+		return rxMsg.setpoints
+
+	def setRGB(self, rgb, timeout=None):
+		txMsg = SimplePWMMsg_Setpoints(flags=0,
+					       setpoints=rgb)
+		self.__tx_message(txMsg)
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Ack, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to set setpoints.")
+
+def triple(string):
+	s = string.split(",")
+	if len(s) != 3:
+		raise SimplePWMError("Triple-value is not a triple.")
+	return [ int(v, 0) for v in s ]
+
+def main():
+	p = argparse.ArgumentParser(description="SimplePWM remote control")
+	p.add_argument("-p", "--ping", action="store_true",
+		       help="Send a ping to the device and wait for pong reply.")
+	p.add_argument("-a", "--get-analog", action="store_true",
+		       help="Get the state of the analog inputs.")
+	p.add_argument("-A", "--analog", type=int, default=None,
+		       help="Enable/disable the analog inputs.")
+	p.add_argument("-r", "--get-rgb", action="store_true",
+		       help="Get the current RGB setpoint values.")
+	p.add_argument("-R", "--rgb", type=triple, default=None,
+		       help="Set the RGB setpoint values.")
+	#TODO
+	p.add_argument("-d", "--debug-device", action="store_true",
+		       help="Read and dump debug messages from device.")
+	p.add_argument("-D", "--debug", action="store_true",
+		       help="Enable remote side debugging.")
+	p.add_argument("port", nargs="?", type=pathlib.Path,
+		       default=pathlib.Path("/dev/ttyUSB0"),
+		       help="Serial port.")
+	args = p.parse_args()
+
+	if args.debug:
+		printDebug.enabled = True
+	if args.debug_device:
+		printDebugDevice.enabled = True
+
+	try:
+		s = SimplePWM(port=str(args.port),
+			      dumpDebugStream=args.debug_device)
+		if args.ping:
+			s.ping()
+		if args.analog is not None:
+			s.setAnalogEn(args.analog)
+		if args.get_analog:
+			print("Analog inputs state: %s" % (
+			      "enabled" if s.getAnalogEn() else "disabled"))
+		if args.rgb is not None:
+			s.setRGB(args.rgb)
+		if args.get_rgb:
+			print("RGB setpoints: %s" % s.getRGB())
+		if args.debug_device:
+			s.dumpDebugStream()
+	except SimplePWMError as e:
+		printError(e)
+		return 1
+	except KeyboardInterrupt as e:
+		printInfo("Interrupted.")
+		return 1
+
+	return 0
+
+sys.exit(main())

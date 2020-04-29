@@ -2,13 +2,22 @@
 #define STANDBY_H_
 
 #include "util.h"
+#include "remote.h"
 
 
 enum standby_source {
 	STANDBY_SRC_ADC,
+#if USE_REMOTE
+	STANDBY_SRC_REMOTE,
+#endif
 
 	NR_STANDBY_SRC, /* Number of standby sources. */
 };
+
+#if !USE_REMOTE
+# define STANDBY_SRC_REMOTE	255 /* dummy */
+#endif
+
 
 void set_standby_suppress(enum standby_source source, bool suppress);
 void standby_handle_deep_sleep_wakeup(void);

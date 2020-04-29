@@ -30,6 +30,7 @@
 #include "potentiometer.h"
 #include "arithmetic.h"
 #include "outputsp.h"
+#include "remote.h"
 #include "adc.h"
 #include "standby.h"
 
@@ -86,8 +87,8 @@ static void ports_init(void)
 	        (0 << DDC3) | (0 << DDC2) | (0 << DDC1) | (0 << DDC0);
 	PORTC = (0       )  | (0 << PC6)  | (1 << PC5)  | (0 << PC4) |
 	        (1 << PC3)  | (0 << PC2)  | (0 << PC1)  | (0 << PC0);
-	/* PD0 = input / pullup
-	 * PD1 = UART TxD if DEBUG else input / pullup
+	/* PD0 = UART RxD if UART else input / pullup
+	 * PD1 = UART TxD if UART else input / pullup
 	 * PD2 = output / high if USE_MAINLOOPDBG else input / pullup
 	 * PD3 = input / pullup
 	 * PD4 = input / pullup
@@ -177,6 +178,7 @@ void system_handle_deep_sleep_wakeup(void)
 			power_reduction(false);
 			uart_exit_deep_sleep();
 			standby_handle_deep_sleep_wakeup();
+			remote_handle_deep_sleep_wakeup();
 		}
 	}
 }
@@ -194,6 +196,7 @@ void system_handle_watchdog_interrupt(void)
 		}
 		standby_handle_watchdog_interrupt(wakeup_from_standby);
 	}
+	remote_handle_watchdog_interrupt();
 	battery_handle_watchdog_interrupt();
 }
 
@@ -235,6 +238,7 @@ int _mainfunc main(void)
 	adc_analogpins_enable(true);
 	uart_init();
 	debug_init();
+	remote_init();
 	battery_init();
 
 	while (1) {

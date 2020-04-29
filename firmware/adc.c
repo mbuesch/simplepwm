@@ -29,6 +29,7 @@
 #include "arithmetic.h"
 #include "outputsp.h"
 #include "standby.h"
+#include "remote.h"
 
 
 /* ADC configuration. */
@@ -61,7 +62,7 @@
 #define USE_ADC_DISCARD		(USE_BAT_MONITOR || (NR_ADC > 1))
 
 /* Analog pin switching support. */
-#define USE_APIN_SWITCH		0//USE_REMOTE
+#define USE_APIN_SWITCH		USE_REMOTE
 
 
 static struct {

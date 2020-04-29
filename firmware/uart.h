@@ -2,8 +2,9 @@
 #define UART_H_
 
 #include "main.h"
+#include "remote.h"
 
-#if DEBUG && IS_ATMEGAx8
+#if (DEBUG || USE_REMOTE) && IS_ATMEGAx8
 # define USE_UART	1
 # define IF_UART(...)	__VA_ARGS__
 #else

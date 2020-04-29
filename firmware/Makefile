@@ -46,6 +46,7 @@ SRCS			:= \
 			potentiometer.c \
 			pcint.c \
 			pwm.c \
+			remote.c \
 			standby.c \
 			uart.c \
 			watchdog.c
