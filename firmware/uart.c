@@ -19,8 +19,10 @@
  */
 
 #include "compat.h"
+#include "debug.h"
 #include "util.h"
 #include "uart.h"
+#include "pcint.h"
 
 
 /* On wire data format:
@@ -55,6 +57,9 @@
 #define USE_2X		(((uint64_t)F_CPU % (8ull * BAUDRATE)) < \
 			 ((uint64_t)F_CPU % (16ull * BAUDRATE)))
 #define UBRRVAL		((uint64_t)F_CPU / ((USE_2X ? 8ull : 16ull) * BAUDRATE))
+
+#define UART_RXD_PCINT	16
+#define UART_TXD_PCINT	17
 
 
 #define FLG_8BIT	0x80u /* 8-bit data nibble */
@@ -211,6 +216,51 @@ void uart_register_callbacks(uart_txready_cb_t tx_ready,
 	)
 }
 
+static void uart_enable(bool enable)
+{
+	if (enable) {
+		IF_UART(
+			UBRR0 = UBRRVAL;
+			UCSR0A = (1 << TXC0) | (!!(USE_2X) << U2X0) | (0 << MPCM0);
+			UCSR0C = (0 << UMSEL01) | (0 << UMSEL00) |
+				 (0 << UPM01) | (0 << UPM00) |
+				 (1 << USBS0) |
+				 (1 << UCSZ01) | (1 << UCSZ00);
+			UCSR0B = (1 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |
+				 (1 << RXEN0) | (1 << TXEN0) |
+				 (0 << UCSZ02);
+		)
+	} else {
+		IF_UART(
+			UCSR0B = 0u;
+		)
+	}
+}
+
+static void uart_rxd_pcint_handler(void)
+{
+	if (USE_UART) {
+		/* We woke up from deep sleep (power-down) by UART RX. */
+		system_handle_deep_sleep_wakeup();
+	}
+}
+
+void uart_enter_deep_sleep(void)
+{
+	if (USE_UART) {
+		uart_enable(false);
+		pcint_enable(UART_RXD_PCINT, true);
+	}
+}
+
+void uart_exit_deep_sleep(void)
+{
+	if (USE_UART) {
+		pcint_enable(UART_RXD_PCINT, false);
+		uart_enable(true);
+	}
+}
+
 void uart_init(void)
 {
 	uint8_t i;
@@ -219,17 +269,7 @@ void uart_init(void)
 		uart.tx.ready_callback[i] = NULL;
 		uart.rx.callback[i] = NULL;
 	}
+	pcint_register_callback(UART_RXD_PCINT, uart_rxd_pcint_handler);
 	memory_barrier();
-
-	IF_UART(
-		UBRR0 = UBRRVAL;
-		UCSR0A = (1 << TXC0) | (!!(USE_2X) << U2X0) | (0 << MPCM0);
-		UCSR0B = (1 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |
-			 (1 << RXEN0) | (1 << TXEN0) |
-			 (0 << UCSZ02);
-		UCSR0C = (0 << UMSEL01) | (0 << UMSEL00) |
-			 (0 << UPM01) | (0 << UPM00) |
-			 (1 << USBS0) |
-			 (1 << UCSZ01) | (1 << UCSZ00);
-	)
+	uart_enable(true);
 }

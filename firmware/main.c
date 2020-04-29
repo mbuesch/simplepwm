@@ -175,6 +175,7 @@ void system_handle_deep_sleep_wakeup(void)
 			/* Re-enable all used peripherals. */
 			output_setpoint_wakeup();
 			power_reduction(false);
+			uart_exit_deep_sleep();
 			standby_handle_deep_sleep_wakeup();
 		}
 	}
@@ -249,6 +250,7 @@ int _mainfunc main(void)
 		if (USE_DEEP_SLEEP) {
 			if (standby_is_desired_now()) {
 				debug_prepare_deep_sleep();
+				uart_enter_deep_sleep();
 
 				system.deep_sleep_active = true;
 				go_deep = true;

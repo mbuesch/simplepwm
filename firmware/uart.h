@@ -32,6 +32,9 @@ void uart_tx_enable(bool enable, enum uart_chan chan);
 void uart_register_callbacks(uart_txready_cb_t tx_ready,
 			     uart_rx_cb_t rx,
 			     enum uart_chan chan);
+
+void uart_enter_deep_sleep(void);
+void uart_exit_deep_sleep(void);
 void uart_init(void);
 
 #endif /* UART_H_ */
