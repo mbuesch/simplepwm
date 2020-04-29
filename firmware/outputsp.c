@@ -20,15 +20,15 @@
 
 #include "compat.h"
 #include "outputsp.h"
-#include "debug.h"
-#include "util.h"
-#include "main.h"
-#include "pwm.h"
+
 #include "battery.h"
 #include "color.h"
 #include "curve.h"
 #include "curve_data_adc2sp.h"
+#include "debug.h"
 #include "filter.h"
+#include "main.h"
+#include "util.h"
 
 
 #define H	0
@@ -71,11 +71,11 @@ uint16_t output_setpoint_get(uint8_t index, bool hsl)
 
 /* Set the output signal (PWM) setpoint.
  * Interrupts shall be disabled before calling this function. */
-void output_setpoint_set(IF_MULTIPWM(uint8_t index,) uint16_t setpoint)
+void output_setpoint_set(IF_MULTIPWM(uint8_t index,) bool allow_hsl, uint16_t setpoint)
 {
 	uint8_t i;
 
-	if (HSL_ENABLED) {
+	if (HSL_ENABLED && allow_hsl) {
 		/* Set all RGB PWM output signals
 		 * that have been converted from HSL. */
 		for (i = 0u; i < NR_PWM; i++) {

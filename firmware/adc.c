@@ -287,7 +287,7 @@ ISR(ADC_vect)
 				 * This also reconfigures the
 				 * battery measurement interval. */
 				for (i = 0u; i < NR_PWM; i++)
-					output_setpoint_set(IF_MULTIPWM(i,) 0u);
+					output_setpoint_set(IF_MULTIPWM(i,) false, 0u);
 			}
 
 			/* We're done.
@@ -328,6 +328,7 @@ ISR(ADC_vect)
 
 				/* Change the output signal (PWM). */
 				output_setpoint_set(IF_MULTIPWM(index,)
+						    true,
 						    filt_setpoint);
 
 				/* Increment index to the next ADC. */
