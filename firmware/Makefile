@@ -9,9 +9,6 @@
 #	m328p	=> ATMega328P with full feature set for three PWM (RGB).
 DEV			:= t85
 
-# Interpret the setpoints as HSL instead of RGB?
-USE_HSL			:= 1
-
 # Limit the maximum PWM duty cycle to this percentage:
 PWM_LIM			:= 100
 # Invert the PWM output signal?
@@ -20,13 +17,16 @@ PWM_INVERT		:= 0
 # Invert the ADC input signal?
 ADC_INVERT		:= 0
 
+# Interpret the ADC setpoints as HSL instead of RGB, if 3 ADCs are available?
+ADC_HSL			:= 1
+
 
 
 ##############################################################################
 ##############################################################################
 ##############################################################################
 
-$(info DEV=$(DEV) USE_HSL=$(USE_HSL) PWM_LIM=$(PWM_LIM) PWM_INVERT=$(PWM_INVERT) ADC_INVERT=$(ADC_INVERT))
+$(info DEV=$(DEV) PWM_LIM=$(PWM_LIM) PWM_INVERT=$(PWM_INVERT) ADC_INVERT=$(ADC_INVERT) ADC_HSL=$(ADC_HSL))
 
 # Project name
 NAME			:= simplepwm
@@ -123,10 +123,10 @@ INSTRUMENT_FUNC		:=
 BOOT_INSTRUMENT_FUNC	:=
 
 # Additional compiler flags
-CFLAGS			:= -DUSE_HSL="$(USE_HSL)" \
-			   -DPWM_LIM="$(PWM_LIM)" \
+CFLAGS			:= -DPWM_LIM="$(PWM_LIM)" \
 			   -DPWM_INVERT="(!!($(PWM_INVERT)))" \
-			   -DADC_INVERT="(!!($(ADC_INVERT)))"
+			   -DADC_INVERT="(!!($(ADC_INVERT)))" \
+			   -DADC_HSL="$(ADC_HSL)"
 LDFLAGS			:=
 
 # Additional "clean" and "distclean" target files

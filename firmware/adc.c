@@ -312,6 +312,7 @@ ISR(ADC_vect)
 				index = (NR_ADC > 1u) ? adc.index : 0u;
 
 				output_setpoint_transform(IF_MULTIPWM(index,)
+							  ADC_HSL,
 							  raw_adc,
 							  &raw_setpoint,
 							  &filt_setpoint);
@@ -328,7 +329,7 @@ ISR(ADC_vect)
 
 				/* Change the output signal (PWM). */
 				output_setpoint_set(IF_MULTIPWM(index,)
-						    true,
+						    ADC_HSL,
 						    filt_setpoint);
 
 				/* Increment index to the next ADC. */

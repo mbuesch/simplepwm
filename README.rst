@@ -74,14 +74,14 @@ ATMega 328P      `DEV=m328p`
 
 Additional build options that can be passed to `make`:
 
-===========  ======  =======  ====================================================
+===========  ======  =======  ================================================================
 make option  values  default  description
-===========  ======  =======  ====================================================
-USE_HSL      0-1     1        Interpret the setpoints as HSL instead of RGB.
+===========  ======  =======  ================================================================
 PWM_LIM      1-100   100      Limit the maximum PWM duty cycle to this percentage.
 PWM_INVERT   0-1     0        Invert the PWM output signal(s).
 ADC_INVERT   0-1     0        Invert the ADC input signal(s).
-===========  ======  =======  ====================================================
+ADC_HSL      0-1     1        Interpret the ADC input signals as HSL setpoints instead of RGB.
+===========  ======  =======  ================================================================
 
 
 Flashing the firmware after build

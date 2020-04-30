@@ -43,8 +43,6 @@
 
 #define SP_PERCENT(x)		((unsigned int)(((uint32_t)(x) * 100u) / UINT16_MAX))
 
-#define HSL_ENABLED		(USE_HSL && NR_PWM == 3u)
-
 
 static struct {
 	uint16_t hsl[NR_PWM];
@@ -60,10 +58,9 @@ static struct {
 uint16_t output_setpoint_get(uint8_t index, bool hsl)
 {
 	if (index < NR_PWM) {
-		if (hsl) {
-			if (HSL_ENABLED)
-				return outsp.hsl[index];
-		} else
+		if (hsl)
+			return outsp.hsl[index];
+		else
 			return pwm_sp_get(IF_MULTIPWM(index));
 	}
 	return 0u;
@@ -71,11 +68,13 @@ uint16_t output_setpoint_get(uint8_t index, bool hsl)
 
 /* Set the output signal (PWM) setpoint.
  * Interrupts shall be disabled before calling this function. */
-void output_setpoint_set(IF_MULTIPWM(uint8_t index,) bool allow_hsl, uint16_t setpoint)
+void output_setpoint_set(IF_MULTIPWM(uint8_t index,)
+			 bool allow_hsl,
+			 uint16_t setpoint)
 {
 	uint8_t i;
 
-	if (HSL_ENABLED && allow_hsl) {
+	if (NR_PWM == 3u && allow_hsl) {
 		/* Set all RGB PWM output signals
 		 * that have been converted from HSL. */
 		for (i = 0u; i < NR_PWM; i++) {
@@ -102,19 +101,59 @@ void output_setpoint_set(IF_MULTIPWM(uint8_t index,) bool allow_hsl, uint16_t se
 	battery_update_setpoint();
 }
 
+/* Convert HSL values to RGB. */
+void output_setpoint_convert_hsl2rgb(const uint16_t *hsl)
+{
+	uint16_t rgb[NR_PWM];
+	uint8_t irq_flags;
+	uint8_t i;
+
+	if (NR_PWM == 3u) {
+		hsl2rgb(&rgb[R], &rgb[G], &rgb[B],
+			hsl[H], hsl[S], hsl[L]);
+
+		irq_flags = irq_disable_save();
+		for (i = 0u; i < NR_PWM; i++) {
+			outsp.hsl[i] = hsl[i];
+			outsp.rgb[i] = rgb[i];
+		}
+		irq_restore(irq_flags);
+
+		/* Print the converted values. */
+		if (DEBUG) {
+			if (outsp.debug_count == 0u) {
+				outsp.debug_count = 2048;
+				dprintf("H %u%%   S %u%%   L %u%%   "
+					"R %u%%   G %u%%   B %u%%\r\n",
+					SP_PERCENT(outsp.hsl[H]),
+					SP_PERCENT(outsp.hsl[S]),
+					SP_PERCENT(outsp.hsl[L]),
+					SP_PERCENT(outsp.rgb[R]),
+					SP_PERCENT(outsp.rgb[G]),
+					SP_PERCENT(outsp.rgb[B]));
+			} else
+				outsp.debug_count--;
+		}
+	}
+}
+
 /* Convert the raw ADC value to a
  * raw PWM setpoint and a filtered PWM setpoint. */
 void output_setpoint_transform(IF_MULTIPWM(uint8_t index,)
+			       bool allow_hsl,
 			       uint16_t raw_adc,
 			       uint16_t *raw_setpoint,
 			       uint16_t *filt_setpoint)
 {
+	uint16_t hsl[NR_PWM];
 	uint16_t raw_sp;
 	uint16_t filt_sp;
+	uint8_t i;
+	uint8_t irq_flags;
 	IF_SINGLEPWM(uint8_t index = 0u);
 
 	/* Transform the value according to the transformation curve. */
-	if (HSL_ENABLED) {
+	if (NR_PWM == 3u && allow_hsl) {
 		switch (index) {
 		default:
 		case H:
@@ -150,27 +189,15 @@ void output_setpoint_transform(IF_MULTIPWM(uint8_t index,)
 		filt_sp = 0u;
 	}
 
-	if (HSL_ENABLED) {
-		/* Convert the HSL setpoints to RGB. */
-		outsp.hsl[index] = filt_sp;
-		hsl2rgb(&outsp.rgb[R], &outsp.rgb[G], &outsp.rgb[B],
-			 outsp.hsl[H],  outsp.hsl[S],  outsp.hsl[L]);
+	/* Convert the HSL setpoints to RGB. */
+	if (NR_PWM == 3u && allow_hsl) {
+		irq_flags = irq_disable_save();
+		for (i = 0u; i < NR_PWM; i++)
+			hsl[i] = outsp.hsl[i];
+		irq_restore(irq_flags);
 
-		/* Print the converted values. */
-		if (DEBUG) {
-			if (outsp.debug_count == 0u) {
-				outsp.debug_count = 2048;
-				dprintf("H %u%%   S %u%%   L %u%%   "
-					"R %u%%   G %u%%   B %u%%\r\n",
-					SP_PERCENT(outsp.hsl[H]),
-					SP_PERCENT(outsp.hsl[S]),
-					SP_PERCENT(outsp.hsl[L]),
-					SP_PERCENT(outsp.rgb[R]),
-					SP_PERCENT(outsp.rgb[G]),
-					SP_PERCENT(outsp.rgb[B]));
-			} else
-				outsp.debug_count--;
-		}
+		hsl[index] = filt_sp;
+		output_setpoint_convert_hsl2rgb(&hsl[0]);
 	}
 
 	*raw_setpoint = raw_sp;
