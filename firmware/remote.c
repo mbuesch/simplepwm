@@ -131,10 +131,6 @@ static void remote_update_standby_suppress(void)
 	if (remote.time_since_xfer_ms < REMOTE_STANDBY_DELAY_MS)
 		standby_suppress = true;
 
-//FIXME If sp=0 then we could sleep.
-	if (!adc_analogpins_enabled())
-		standby_suppress = true;
-
 	set_standby_suppress(STANDBY_SRC_REMOTE, standby_suppress);
 }
 

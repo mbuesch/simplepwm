@@ -392,19 +392,40 @@ class SimplePWM(object):
 			raise SimplePWMError("Failed to get acknowledge.")
 
 	def getRGB(self, timeout=None):
-		self.__tx_message(SimplePWMMsg_GetSetpoints(0))
+		self.__tx_message(SimplePWMMsg_GetSetpoints(
+				flags=0))
 		rxMsg = self.__waitRxMsg(SimplePWMMsg_Setpoints, timeout)
 		if not rxMsg:
-			raise SimplePWMError("Failed to get setpoints.")
+			raise SimplePWMError("Failed to get RGB setpoints.")
 		return rxMsg.setpoints
 
 	def setRGB(self, rgb, timeout=None):
-		txMsg = SimplePWMMsg_Setpoints(flags=0,
-					       setpoints=rgb)
+		self.setAnalogEn(False, timeout)
+		txMsg = SimplePWMMsg_Setpoints(
+				flags=0,
+				setpoints=rgb)
 		self.__tx_message(txMsg)
 		rxMsg = self.__waitRxMsg(SimplePWMMsg_Ack, timeout)
 		if not rxMsg:
-			raise SimplePWMError("Failed to set setpoints.")
+			raise SimplePWMError("Failed to set RGB setpoints.")
+
+	def getHSL(self, timeout=None):
+		self.__tx_message(SimplePWMMsg_GetSetpoints(
+				flags=SimplePWMMsg_GetSetpoints.MSG_GETSPFLG_HSL))
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Setpoints, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to get HSL setpoints.")
+		return rxMsg.setpoints
+
+	def setHSL(self, hsl, timeout=None):
+		self.setAnalogEn(False, timeout)
+		txMsg = SimplePWMMsg_Setpoints(
+				flags=SimplePWMMsg_Setpoints.MSG_SPFLG_HSL,
+				setpoints=hsl)
+		self.__tx_message(txMsg)
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Ack, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to set RGB setpoints.")
 
 def triple(string):
 	s = string.split(",")
@@ -424,7 +445,10 @@ def main():
 		       help="Get the current RGB setpoint values.")
 	p.add_argument("-R", "--rgb", type=triple, default=None,
 		       help="Set the RGB setpoint values.")
-	#TODO
+	p.add_argument("-s", "--get-hsl", action="store_true",
+		       help="Get the current HSL setpoint values.")
+	p.add_argument("-S", "--hsl", type=triple, default=None,
+		       help="Set the HSL setpoint values.")
 	p.add_argument("-d", "--debug-device", action="store_true",
 		       help="Read and dump debug messages from device.")
 	p.add_argument("-D", "--debug", action="store_true",
@@ -453,6 +477,10 @@ def main():
 			s.setRGB(args.rgb)
 		if args.get_rgb:
 			print("RGB setpoints: %s" % s.getRGB())
+		if args.hsl is not None:
+			s.setHSL(args.hsl)
+		if args.get_hsl:
+			print("HSL setpoints: %s" % s.getHSL())
 		if args.debug_device:
 			s.dumpDebugStream()
 	except SimplePWMError as e:
