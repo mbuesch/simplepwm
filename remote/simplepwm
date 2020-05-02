@@ -252,6 +252,9 @@ class SimplePWM(object):
 	MSK_4BIT	= 0x0F # data nibble
 	MSK_7BIT	= 0x7F
 
+	REMOTE_STANDBY_DELAY_MS	= 5000
+	REMOTE_STANDBY_DELAY	= REMOTE_STANDBY_DELAY_MS / 1000
+
 	def __init__(self,
 		     port="/dev/ttyUSB0",
 		     timeout=1.0,
@@ -268,12 +271,17 @@ class SimplePWM(object):
 		self.__rxBuf = bytearray()
 		self.__rxMsgs = deque()
 		self.__debugBuf = bytearray()
+		self.__nextSyncTime = time.monotonic()
 		self.__wakeup()
 
 	def __synchronize(self):
 		self.__tx_8bit(SimplePWMMsg.MSG_SYNCBYTE * round(SimplePWMMsg.SIZE * 2.5))
 
 	def __wakeup(self):
+		nextSyncTime = self.__nextSyncTime
+		self.__nextSyncTime = time.monotonic() + (self.REMOTE_STANDBY_DELAY / 2)
+		if time.monotonic() < nextSyncTime:
+			return
 		count = 0
 		while True:
 			self.__synchronize()
@@ -285,9 +293,10 @@ class SimplePWM(object):
 					raise e
 				continue
 			break
-		printDebug("Connected.")
+		printDebug("Connection synchronized.")
 
 	def __tx_8bit(self, data):
+		self.__wakeup()
 #		printDebug("TX:", bytes(data))
 		for d in data:
 			lo = ((d & self.MSK_4BIT) |
@@ -468,6 +477,25 @@ def parse_setpoints(string):
 
 def main():
 	try:
+		class ArgumentParserOrderedNamespace(argparse.Namespace):
+			def __init__(self, *args, **kwargs):
+				super().__init__(*args, **kwargs)
+				super().__setattr__("_setupDone", False)
+				super().__setattr__("_orderedArgs", [])
+
+			def __setattr__(self, name, value):
+				sanitizedName = name.replace("_", "-")
+				if (not self._setupDone and
+				    sanitizedName in (n for n, v in self._orderedArgs)):
+					super().__setattr__("_setupDone", True)
+					del self._orderedArgs[:]
+				self._orderedArgs.append( (sanitizedName, value) )
+				super().__setattr__(name, value)
+
+			@property
+			def orderedArgs(self):
+				return self._orderedArgs if self._setupDone else ()
+
 		p = argparse.ArgumentParser(description="SimplePWM remote control")
 		p.add_argument("-p", "--ping", action="store_true",
 			       help="Send a ping to the device and wait for pong reply.")
@@ -483,6 +511,10 @@ def main():
 			       help="Get the current HSL setpoint values.")
 		p.add_argument("-S", "--hsl", type=parse_setpoints, default=None,
 			       help="Set the HSL setpoint values.")
+		p.add_argument("-W", "--wait", type=float,
+			       help="Delay for a fractional number of seconds.")
+		p.add_argument("-L", "--loop", action="store_true",
+			       help="Repeat the whole sequence.")
 		p.add_argument("-d", "--debug-device", action="store_true",
 			       help="Read and dump debug messages from device.")
 		p.add_argument("-D", "--debug", action="store_true",
@@ -490,7 +522,7 @@ def main():
 		p.add_argument("port", nargs="?", type=pathlib.Path,
 			       default=pathlib.Path("/dev/ttyUSB0"),
 			       help="Serial port.")
-		args = p.parse_args()
+		args = p.parse_args(namespace=ArgumentParserOrderedNamespace())
 
 		if args.debug:
 			printDebug.enabled = True
@@ -499,29 +531,44 @@ def main():
 
 		s = SimplePWM(port=str(args.port),
 			      dumpDebugStream=args.debug_device)
-		if args.ping:
-			s.ping()
-		if args.analog is not None:
-			s.setAnalogEn(args.analog)
-		if args.get_analog:
-			print("Analog inputs state: %s" % (
-			      "enabled" if s.getAnalogEn() else "disabled"))
-		if args.rgb is not None:
-			s.setRGB(args.rgb)
-		if args.get_rgb:
-			rgb = s.getRGB()
-			print("RGB setpoints: %.1f%%, %.1f%%, %.1f%%" % (
-			      rgb[0] * 100 / 0xFFFF,
-			      rgb[1] * 100 / 0xFFFF,
-			      rgb[2] * 100 / 0xFFFF))
-		if args.hsl is not None:
-			s.setHSL(args.hsl)
-		if args.get_hsl:
-			hsl = s.getHSL()
-			print("HSL setpoints: %.1f%%, %.1f%%, %.1f%%" % (
-			      hsl[0] * 100 / 0xFFFF,
-			      hsl[1] * 100 / 0xFFFF,
-			      hsl[2] * 100 / 0xFFFF))
+
+		repeat = True
+		while repeat:
+			for name, value in args.orderedArgs:
+				if name == "ping":
+					if value:
+						s.ping()
+				if name == "analog":
+					s.setAnalogEn(value)
+				if name == "get-analog":
+					if value:
+						print("Analog inputs state: %s" % (
+						      "enabled" if s.getAnalogEn() else "disabled"))
+				if name == "rgb":
+					s.setRGB(value)
+				if name == "get-rgb":
+					if value:
+						rgb = s.getRGB()
+						print("RGB setpoints: %.1f%%, %.1f%%, %.1f%%" % (
+						      rgb[0] * 100 / 0xFFFF,
+						      rgb[1] * 100 / 0xFFFF,
+						      rgb[2] * 100 / 0xFFFF))
+				if name == "hsl":
+					s.setHSL(value)
+				if name == "get-hsl":
+					if value:
+						hsl = s.getHSL()
+						print("HSL setpoints: %.1f%%, %.1f%%, %.1f%%" % (
+						      hsl[0] * 100 / 0xFFFF,
+						      hsl[1] * 100 / 0xFFFF,
+						      hsl[2] * 100 / 0xFFFF))
+				if name == "wait":
+					time.sleep(value)
+				if name == "loop":
+					repeat = True
+					break
+			else:
+				repeat = False
 		if args.debug_device:
 			s.dumpDebugStream()
 	except SimplePWMError as e:
