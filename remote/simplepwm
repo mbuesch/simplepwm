@@ -290,8 +290,11 @@ class SimplePWM(object):
 	def __tx_8bit(self, data):
 #		printDebug("TX:", bytes(data))
 		for d in data:
-			lo = (d & self.MSK_4BIT) | self.FLG_8BIT
-			hi = ((d >> 4) & self.MSK_4BIT) | self.FLG_8BIT | self.FLG_8BIT_UPPER
+			lo = ((d & self.MSK_4BIT) |
+			      self.FLG_8BIT)
+			hi = (((d >> 4) & self.MSK_4BIT) |
+			      self.FLG_8BIT |
+			      self.FLG_8BIT_UPPER)
 			sendBytes = bytes( (lo, hi) )
 			self.__serial.write(sendBytes)
 
@@ -299,7 +302,8 @@ class SimplePWM(object):
 		self.__debugBuf += dataByte
 		if dataByte == b"\n":
 			if self.__dumpDebugStream:
-				printDebugDevice(self.__debugBuf.decode("ASCII", "ignore").strip())
+				text = self.__debugBuf.decode("ASCII", "ignore").strip()
+				printDebugDevice(text)
 			self.__debugBuf.clear()
 
 	def __rx_8bit(self, dataByte):
@@ -354,7 +358,8 @@ class SimplePWM(object):
 					if isinstance(rxMsg, msgType):
 						retMsg = rxMsg
 					else:
-						printError("Received unexpected message: " + str(rxMsg))
+						printError("Received unexpected "
+							   "message: " + str(rxMsg))
 			self.__rxMsgs.clear()
 		return retMsg
 
@@ -427,43 +432,71 @@ class SimplePWM(object):
 		if not rxMsg:
 			raise SimplePWMError("Failed to set RGB setpoints.")
 
-def triple(string):
+def parse_setpoints(string):
 	s = string.split(",")
 	if len(s) != 3:
-		raise SimplePWMError("Triple-value is not a triple.")
-	return [ int(v, 0) for v in s ]
+		raise SimplePWMError("Setpoints are not a comma separated triple.")
+	def parseOne(v):
+		try:
+			v = v.strip()
+			if v.casefold().startswith("0x".casefold()):
+				# Raw 16 bit hex value.
+				v = int(v, 16)
+				if not 0 <= v <= 0xFFFF:
+					raise SimplePWMError("Setpoint raw value "
+						"out of range 0-0xFFFF.")
+				return v
+			if v.endswith("%"):
+				# Percentage
+				v = float(v[:-1])
+				if not 0.0 <= v <= 100.0:
+					raise SimplePWMError("Setpoint percentage "
+						"out of range 0%-100%.")
+				return round(v * 0xFFFF / 100.0)
+			if v.endswith("*"):
+				# Degrees (0-360)
+				v = float(v[:-1])
+				return round((v % 360.0) * 0xFFFF / 360.0)
+			# Value 0-255
+			v = int(v)
+			if 0 <= v <= 0xFF:
+				return (v << 8) | v
+			raise ValueError
+		except ValueError as e:
+			raise SimplePWMError("Setpoint value parse error.")
+	return [ parseOne(v) for v in s ]
 
 def main():
-	p = argparse.ArgumentParser(description="SimplePWM remote control")
-	p.add_argument("-p", "--ping", action="store_true",
-		       help="Send a ping to the device and wait for pong reply.")
-	p.add_argument("-a", "--get-analog", action="store_true",
-		       help="Get the state of the analog inputs.")
-	p.add_argument("-A", "--analog", type=int, default=None,
-		       help="Enable/disable the analog inputs.")
-	p.add_argument("-r", "--get-rgb", action="store_true",
-		       help="Get the current RGB setpoint values.")
-	p.add_argument("-R", "--rgb", type=triple, default=None,
-		       help="Set the RGB setpoint values.")
-	p.add_argument("-s", "--get-hsl", action="store_true",
-		       help="Get the current HSL setpoint values.")
-	p.add_argument("-S", "--hsl", type=triple, default=None,
-		       help="Set the HSL setpoint values.")
-	p.add_argument("-d", "--debug-device", action="store_true",
-		       help="Read and dump debug messages from device.")
-	p.add_argument("-D", "--debug", action="store_true",
-		       help="Enable remote side debugging.")
-	p.add_argument("port", nargs="?", type=pathlib.Path,
-		       default=pathlib.Path("/dev/ttyUSB0"),
-		       help="Serial port.")
-	args = p.parse_args()
-
-	if args.debug:
-		printDebug.enabled = True
-	if args.debug_device:
-		printDebugDevice.enabled = True
-
 	try:
+		p = argparse.ArgumentParser(description="SimplePWM remote control")
+		p.add_argument("-p", "--ping", action="store_true",
+			       help="Send a ping to the device and wait for pong reply.")
+		p.add_argument("-a", "--get-analog", action="store_true",
+			       help="Get the state of the analog inputs.")
+		p.add_argument("-A", "--analog", type=int, default=None,
+			       help="Enable/disable the analog inputs.")
+		p.add_argument("-r", "--get-rgb", action="store_true",
+			       help="Get the current RGB setpoint values.")
+		p.add_argument("-R", "--rgb", type=parse_setpoints, default=None,
+			       help="Set the RGB setpoint values.")
+		p.add_argument("-s", "--get-hsl", action="store_true",
+			       help="Get the current HSL setpoint values.")
+		p.add_argument("-S", "--hsl", type=parse_setpoints, default=None,
+			       help="Set the HSL setpoint values.")
+		p.add_argument("-d", "--debug-device", action="store_true",
+			       help="Read and dump debug messages from device.")
+		p.add_argument("-D", "--debug", action="store_true",
+			       help="Enable remote side debugging.")
+		p.add_argument("port", nargs="?", type=pathlib.Path,
+			       default=pathlib.Path("/dev/ttyUSB0"),
+			       help="Serial port.")
+		args = p.parse_args()
+
+		if args.debug:
+			printDebug.enabled = True
+		if args.debug_device:
+			printDebugDevice.enabled = True
+
 		s = SimplePWM(port=str(args.port),
 			      dumpDebugStream=args.debug_device)
 		if args.ping:
@@ -476,11 +509,19 @@ def main():
 		if args.rgb is not None:
 			s.setRGB(args.rgb)
 		if args.get_rgb:
-			print("RGB setpoints: %s" % s.getRGB())
+			rgb = s.getRGB()
+			print("RGB setpoints: %.1f%%, %.1f%%, %.1f%%" % (
+			      rgb[0] * 100 / 0xFFFF,
+			      rgb[1] * 100 / 0xFFFF,
+			      rgb[2] * 100 / 0xFFFF))
 		if args.hsl is not None:
 			s.setHSL(args.hsl)
 		if args.get_hsl:
-			print("HSL setpoints: %s" % s.getHSL())
+			hsl = s.getHSL()
+			print("HSL setpoints: %.1f%%, %.1f%%, %.1f%%" % (
+			      hsl[0] * 100 / 0xFFFF,
+			      hsl[1] * 100 / 0xFFFF,
+			      hsl[2] * 100 / 0xFFFF))
 		if args.debug_device:
 			s.dumpDebugStream()
 	except SimplePWMError as e:
