@@ -38,6 +38,8 @@ static struct {
 	DEFINE_MOVINGAVG(movingavg, BAT_AVERAGE);
 	uint16_t interval_ms;
 	uint16_t elapsed_ms;
+	uint16_t avg_mv;
+	uint16_t drop_mv;
 	bool voltage_critical;
 } bat;
 
@@ -154,8 +156,25 @@ void evaluate_battery_voltage(uint16_t vcc_mv)
 				dprintf("Battery voltage critical: Over-voltage.\r\n");
 			bat.voltage_critical = true;
 		}
+		bat.avg_mv = avg_vcc_mv;
+		bat.drop_mv = drop_mv;
 		irq_restore(irq_state);
 	}
+}
+
+/* Get the current battery voltage.
+ * May be called with interrupts enabled. */
+void battery_get_voltage(uint16_t *avg_mv, uint16_t *drop_mv)
+{
+	uint8_t irq_state;
+
+	if (USE_BAT_MONITOR) {
+		irq_state = irq_disable_save();
+		*avg_mv = bat.avg_mv;
+		*drop_mv = bat.drop_mv;
+		irq_restore(irq_state);
+	} else
+		*avg_mv = *drop_mv = 0;
 }
 
 /* A watchdog interrupt just occurred. */
