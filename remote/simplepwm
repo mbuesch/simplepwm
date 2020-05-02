@@ -130,7 +130,7 @@ class SimplePWMMsg_Nop(SimplePWMMsg):
 		super().__init__(self.MSGID)
 
 	def __str__(self):
-		return "NOP()"
+		return f"NOP"
 
 class SimplePWMMsg_Ack(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_ACK
@@ -139,7 +139,7 @@ class SimplePWMMsg_Ack(SimplePWMMsg):
 		super().__init__(self.MSGID)
 
 	def __str__(self):
-		return "ACK()"
+		return f"ACK"
 
 class SimplePWMMsg_Nack(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_NACK
@@ -148,7 +148,7 @@ class SimplePWMMsg_Nack(SimplePWMMsg):
 		super().__init__(self.MSGID)
 
 	def __str__(self):
-		return "NACK()"
+		return f"NACK"
 
 class SimplePWMMsg_Ping(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_PING
@@ -157,7 +157,7 @@ class SimplePWMMsg_Ping(SimplePWMMsg):
 		super().__init__(self.MSGID)
 
 	def __str__(self):
-		return "PING()"
+		return f"PING"
 
 class SimplePWMMsg_Pong(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_PONG
@@ -166,7 +166,7 @@ class SimplePWMMsg_Pong(SimplePWMMsg):
 		super().__init__(self.MSGID)
 
 	def __str__(self):
-		return "PONG()"
+		return f"PONG"
 
 class SimplePWMMsg_GetControl(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_GET_CONTROL
@@ -175,7 +175,7 @@ class SimplePWMMsg_GetControl(SimplePWMMsg):
 		super().__init__(self.MSGID)
 
 	def __str__(self):
-		return "GET_CONTROL()"
+		return f"GET_CONTROL"
 
 class SimplePWMMsg_Control(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_CONTROL
@@ -196,7 +196,7 @@ class SimplePWMMsg_Control(SimplePWMMsg):
 		return super().getData(payload)
 
 	def __str__(self):
-		return "CONTROL()"
+		return f"CONTROL(flags=0x{self.flags:X})"
 
 class SimplePWMMsg_GetSetpoints(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_GET_SETPOINTS
@@ -217,7 +217,7 @@ class SimplePWMMsg_GetSetpoints(SimplePWMMsg):
 		return super().getData(payload)
 
 	def __str__(self):
-		return "GET_SETPOINTS()"
+		return f"GET_SETPOINTS(flags=0x{self.flags:X})"
 
 class SimplePWMMsg_Setpoints(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_SETPOINTS
@@ -247,7 +247,7 @@ class SimplePWMMsg_Setpoints(SimplePWMMsg):
 		return super().getData(payload)
 
 	def __str__(self):
-		return "SETPOINTS()"
+		return f"SETPOINTS(flags=0x{self.flags:X}, setpoints={self.setpoints})"
 
 class SimplePWMMsg_GetBatvolt(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_GET_BATVOLT
@@ -256,7 +256,7 @@ class SimplePWMMsg_GetBatvolt(SimplePWMMsg):
 		super().__init__(self.MSGID)
 
 	def __str__(self):
-		return "GET_BATVOLT()"
+		return f"GET_BATVOLT"
 
 class SimplePWMMsg_Batvolt(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_BATVOLT
@@ -279,7 +279,7 @@ class SimplePWMMsg_Batvolt(SimplePWMMsg):
 		return super().getData(payload)
 
 	def __str__(self):
-		return "BATVOLT()"
+		return f"BATVOLT(meas={self.meas}, drop={self.drop})"
 
 class SimplePWM(object):
 	FLG_8BIT	= 0x80 # 8-bit data nibble
