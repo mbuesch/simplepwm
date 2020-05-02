@@ -30,6 +30,7 @@
 #include "uart.h"
 #include "util.h"
 #include "watchdog.h"
+#include "battery.h"
 
 
 #define REMOTE_CHAN			UART_CHAN_8BIT_0
@@ -48,6 +49,8 @@ enum remote_msg_id {
 	MSGID_CONTROL,
 	MSGID_GET_SETPOINTS,
 	MSGID_SETPOINTS,
+	MSGID_GET_BATVOLT,
+	MSGID_BATVOLT,
 };
 
 /* Remote control message. On-wire format. */
@@ -91,6 +94,14 @@ struct remote_msg {
 			uint8_t nr_sp;
 			le16_t sp[REMOTE_NR_SP];
 		} _packed setpoints;
+
+		struct {
+		} _packed get_batvolt;
+
+		struct {
+			uint16_t meas_mv;
+			uint16_t drop_mv;
+		} _packed batvolt;
 
 		uint8_t padding[8];
 	} _packed;
@@ -332,6 +343,20 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 		}
 
 		tx_start(txmsg);
+		break;
+	case MSGID_GET_BATVOLT:
+		txmsg = get_tx_buffer();
+		if (!txmsg)
+			goto error_txalloc;
+
+		txmsg->id = MSGID_BATVOLT;
+
+		battery_get_voltage(&txmsg->batvolt.meas_mv,
+				    &txmsg->batvolt.drop_mv);
+
+		tx_start(txmsg);
+		break;
+	case MSGID_BATVOLT:
 		break;
 	default:
 		goto error_rxmsg;

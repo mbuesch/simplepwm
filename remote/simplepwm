@@ -57,6 +57,8 @@ class SimplePWMMsg(object):
 	MSGID_CONTROL		= 6
 	MSGID_GET_SETPOINTS	= 7
 	MSGID_SETPOINTS		= 8
+	MSGID_GET_BATVOLT	= 9
+	MSGID_BATVOLT		= 10
 
 	@staticmethod
 	def _toLe16(value):
@@ -95,8 +97,12 @@ class SimplePWMMsg(object):
 				return SimplePWMMsg_SetSetpoints._parse(payload)
 			elif msgId == cls.MSGID_SETPOINTS:
 				return SimplePWMMsg_Setpoints._parse(payload)
+			elif msgId == cls.MSGID_GET_BATVOLT:
+				return SimplePWMMsg_GetBatvolt._parse(payload)
+			elif msgId == cls.MSGID_BATVOLT:
+				return SimplePWMMsg_Batvolt._parse(payload)
 			else:
-				printError("Received unknown message: %02X." % msgId)
+				printError(f"Received unknown message: 0x{msgId:X}")
 		return None
 
 	@classmethod
@@ -242,6 +248,38 @@ class SimplePWMMsg_Setpoints(SimplePWMMsg):
 
 	def __str__(self):
 		return "SETPOINTS()"
+
+class SimplePWMMsg_GetBatvolt(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_GET_BATVOLT
+
+	def __init__(self):
+		super().__init__(self.MSGID)
+
+	def __str__(self):
+		return "GET_BATVOLT()"
+
+class SimplePWMMsg_Batvolt(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_BATVOLT
+
+	@classmethod
+	def _parse(cls, payload):
+		meas = cls._fromLe16(payload[0:2])
+		drop = cls._fromLe16(payload[2:4])
+		return cls(meas, drop)
+
+	def __init__(self, meas, drop):
+		super().__init__(self.MSGID)
+		self.meas = meas
+		self.drop = drop
+
+	def getData(self):
+		payload = bytearray()
+		payload += self._toLe16(self.meas)
+		payload += self._toLe16(self.drop)
+		return super().getData(payload)
+
+	def __str__(self):
+		return "BATVOLT()"
 
 class SimplePWM(object):
 	FLG_8BIT	= 0x80 # 8-bit data nibble
@@ -441,6 +479,13 @@ class SimplePWM(object):
 		if not rxMsg:
 			raise SimplePWMError("Failed to set RGB setpoints.")
 
+	def getBatVoltage(self, timeout=None):
+		self.__tx_message(SimplePWMMsg_GetBatvolt())
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Batvolt, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to get battery voltage.")
+		return (rxMsg.meas, rxMsg.drop)
+
 def parse_setpoints(string):
 	s = string.split(",")
 	if len(s) != 3:
@@ -499,6 +544,8 @@ def main():
 		p = argparse.ArgumentParser(description="SimplePWM remote control")
 		p.add_argument("-p", "--ping", action="store_true",
 			       help="Send a ping to the device and wait for pong reply.")
+		p.add_argument("-b", "--get-battery", action="store_true",
+			       help="Get the battery voltage.")
 		p.add_argument("-a", "--get-analog", action="store_true",
 			       help="Get the state of the analog inputs.")
 		p.add_argument("-A", "--analog", type=int, default=None,
@@ -538,30 +585,38 @@ def main():
 				if name == "ping":
 					if value:
 						s.ping()
+				if name == "get-battery":
+					if value:
+						meas, drop = s.getBatVoltage()
+						print(f"Battery: "
+						      f"measured {meas/1000:.2f} V, "
+						      f"drop {drop/1000:.2f} V, "
+						      f"actual {(meas+drop)/1000:.2f} V")
 				if name == "analog":
 					s.setAnalogEn(value)
 				if name == "get-analog":
 					if value:
-						print("Analog inputs state: %s" % (
-						      "enabled" if s.getAnalogEn() else "disabled"))
+						enabled = "enabled" if s.getAnalogEn() else "disabled"
+						print(f"Analog inputs state: "
+						      f"{enabled}")
 				if name == "rgb":
 					s.setRGB(value)
 				if name == "get-rgb":
 					if value:
 						rgb = s.getRGB()
-						print("RGB setpoints: %.1f%%, %.1f%%, %.1f%%" % (
-						      rgb[0] * 100 / 0xFFFF,
-						      rgb[1] * 100 / 0xFFFF,
-						      rgb[2] * 100 / 0xFFFF))
+						print(f"RGB setpoints: "
+						      f"{rgb[0]*100/0xFFFF:.1f}%, "
+						      f"{rgb[1]*100/0xFFFF:.1f}%, "
+						      f"{rgb[2]*100/0xFFFF:.1f}%")
 				if name == "hsl":
 					s.setHSL(value)
 				if name == "get-hsl":
 					if value:
 						hsl = s.getHSL()
-						print("HSL setpoints: %.1f%%, %.1f%%, %.1f%%" % (
-						      hsl[0] * 100 / 0xFFFF,
-						      hsl[1] * 100 / 0xFFFF,
-						      hsl[2] * 100 / 0xFFFF))
+						print(f"HSL setpoints: "
+						      f"{hsl[0]*100/0xFFFF:.1f}%, "
+						      f"{hsl[1]*100/0xFFFF:.1f}%, "
+						      f"{hsl[2]*100/0xFFFF:.1f}%")
 				if name == "wait":
 					time.sleep(value)
 				if name == "loop":
