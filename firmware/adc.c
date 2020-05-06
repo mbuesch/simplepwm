@@ -329,9 +329,11 @@ ISR(ADC_vect)
 				irq_disable();
 
 				/* Change the output signal (PWM). */
-				output_setpoint_set(IF_MULTIPWM(index,)
-						    ADC_HSL,
-						    filt_setpoint);
+				if (adc_analogpins_enabled()) {
+					output_setpoint_set(IF_MULTIPWM(index,)
+							    ADC_HSL,
+							    filt_setpoint);
+				}
 
 				/* Increment index to the next ADC. */
 				if (NR_ADC > 1u) {
