@@ -3,6 +3,7 @@
 
 #include "util.h"
 #include "remote.h"
+#include "eeprom.h"
 
 
 enum standby_source {
@@ -10,12 +11,18 @@ enum standby_source {
 #if USE_REMOTE
 	STANDBY_SRC_REMOTE,
 #endif
+#if USE_EEPROM
+	STANDBY_SRC_EEPROM,
+#endif
 
 	NR_STANDBY_SRC, /* Number of standby sources. */
 };
 
 #if !USE_REMOTE
 # define STANDBY_SRC_REMOTE	255 /* dummy */
+#endif
+#if !USE_EEPROM
+# define STANDBY_SRC_EEPROM	255 /* dummy */
 #endif
 
 

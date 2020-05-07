@@ -33,6 +33,7 @@
 #include "remote.h"
 #include "adc.h"
 #include "standby.h"
+#include "eeprom.h"
 
 
 static struct {
@@ -181,6 +182,7 @@ void system_handle_deep_sleep_wakeup(void)
 
 			adc_handle_deep_sleep_wakeup();
 			remote_handle_deep_sleep_wakeup();
+			eeprom_handle_deep_sleep_wakeup();
 		}
 	}
 }
@@ -198,8 +200,10 @@ void system_handle_watchdog_interrupt(void)
 		}
 		standby_handle_watchdog_interrupt(wakeup_from_standby);
 	}
+
 	remote_handle_watchdog_interrupt();
 	battery_handle_watchdog_interrupt();
+	eeprom_handle_watchdog_interrupt();
 }
 
 /* Disable BOD, then enter sleep mode. */
@@ -238,10 +242,13 @@ int _mainfunc main(void)
 	output_setpoint_init();
 	power_reduction(false);
 	adc_analogpins_enable(true);
+
 	uart_init();
 	debug_init();
 	remote_init();
 	battery_init();
+
+	eeprom_init();
 
 	while (1) {
 		irq_disable();

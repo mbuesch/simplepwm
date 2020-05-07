@@ -39,6 +39,7 @@ SRCS			:= \
 			crc.c \
 			curve.c \
 			debug.c \
+			eeprom.c \
 			filter.c \
 			main.c \
 			movingavg.c \

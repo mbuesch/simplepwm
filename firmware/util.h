@@ -1,6 +1,8 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
+#include "compat.h"
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <limits.h>

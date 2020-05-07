@@ -7,6 +7,7 @@
 #include <avr/sleep.h>
 #include <avr/cpufunc.h>
 #include <avr/pgmspace.h>
+#include <avr/eeprom.h>
 #include <util/delay.h>
 
 
