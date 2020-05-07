@@ -178,6 +178,8 @@ void system_handle_deep_sleep_wakeup(void)
 			power_reduction(false);
 			uart_exit_deep_sleep();
 			standby_handle_deep_sleep_wakeup();
+
+			adc_handle_deep_sleep_wakeup();
 			remote_handle_deep_sleep_wakeup();
 		}
 	}

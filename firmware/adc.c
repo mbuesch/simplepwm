@@ -231,6 +231,14 @@ void adc_analogpins_enable(bool enable)
 	}
 }
 
+/* Handle wake up from deep sleep.
+ * Called with interrupts disabled. */
+void adc_handle_deep_sleep_wakeup(void)
+{
+	if (!adc_analogpins_enabled())
+		set_standby_suppress(STANDBY_SRC_ADC, false);
+}
+
 /* ADC conversion complete interrupt service routine */
 ISR(ADC_vect)
 {
