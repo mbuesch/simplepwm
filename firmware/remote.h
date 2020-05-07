@@ -14,6 +14,7 @@
 
 void remote_handle_deep_sleep_wakeup(void);
 void remote_handle_watchdog_interrupt(void);
+void remote_restore_from_eeprom(void);
 void remote_init(void);
 
 #endif /* REMOTE_H_ */

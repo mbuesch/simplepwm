@@ -181,6 +181,7 @@ class SimplePWMMsg_Control(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_CONTROL
 
 	MSG_CTLFLG_ANADIS	= 0x01
+	MSG_CTLFLG_EEPDIS	= 0x02 #TODO
 
 	@classmethod
 	def _parse(cls, payload):

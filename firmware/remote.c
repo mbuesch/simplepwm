@@ -31,6 +31,7 @@
 #include "util.h"
 #include "watchdog.h"
 #include "battery.h"
+#include "eeprom.h"
 
 
 #define REMOTE_CHAN			UART_CHAN_8BIT_0
@@ -81,6 +82,7 @@ struct remote_msg {
 		struct {
 			uint8_t flags;
 #define MSG_CTLFLG_ANADIS	0x01 /* Disable analog inputs. */
+#define MSG_CTLFLG_EEPDIS	0x02 /* Disable EEPROM. */
 		} _packed control;
 
 		struct {
@@ -133,6 +135,8 @@ static struct {
 static void remote_update_standby_suppress(void)
 {
 	bool standby_suppress;
+//	uint8_t i;
+//	bool all_zero;
 
 	if (!USE_REMOTE)
 		return;
@@ -141,6 +145,16 @@ static void remote_update_standby_suppress(void)
 
 	if (remote.time_since_xfer_ms < REMOTE_STANDBY_DELAY_MS)
 		standby_suppress = true;
+
+	if (!adc_analogpins_enabled()) {
+/*TODO
+		all_zero = true;
+		for (i = 0u; i < NR_PWM; i++)
+			all_zero &= output_setpoint_get(i, false) == 0u;
+		if (!all_zero)
+*/
+			standby_suppress = true;
+	}
 
 	set_standby_suppress(STANDBY_SRC_REMOTE, standby_suppress);
 }
@@ -216,6 +230,7 @@ static void tx_start(struct remote_msg *msg)
 static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 {
 	struct remote_msg *txmsg;
+	struct eeprom_data *eedata;
 	uint8_t crc;
 	uint8_t i;
 
@@ -227,6 +242,8 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 	crc = crc8(rxmsg, sizeof(*rxmsg) - 1);
 	if (crc != rxmsg->crc) /* CRC error */
 		goto error_rxmsg;
+
+	eedata = eeprom_get_data();
 
 	switch (rxmsg->id) {
 	case MSGID_NOP:
@@ -262,11 +279,28 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 		if (!txmsg)
 			goto error_txalloc;
 
-		if (rxmsg->control.flags & MSG_CTLFLG_ANADIS) {
+		/* Update control settings. */
+		if (rxmsg->control.flags & MSG_CTLFLG_ANADIS)
 			adc_analogpins_enable(false);
-			remote_update_standby_suppress();
-		} else
+		else
 			adc_analogpins_enable(true);
+
+		/* Update settings in EEPROM. */
+		if (eedata) {
+			if (rxmsg->control.flags & MSG_CTLFLG_EEPDIS)
+				eedata->flags |= EEPROM_FLAG_DIS;
+			else
+				eedata->flags &= (uint8_t)~EEPROM_FLAG_DIS;
+
+			if (!(eedata->flags & EEPROM_FLAG_DIS)) {
+				if (rxmsg->control.flags & MSG_CTLFLG_ANADIS)
+					eedata->flags |= EEPROM_FLAG_ANADIS;
+				else
+					eedata->flags &= (uint8_t)~EEPROM_FLAG_ANADIS;
+			}
+
+			eeprom_store_data();
+		}
 
 		txmsg->id = MSGID_ACK;
 
@@ -321,21 +355,45 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 			    rxmsg->setpoints.nr_sp == REMOTE_NR_SP) {
 				uint16_t hsl[REMOTE_NR_SP];
 
+				/* Update HSL output setpoints. */
 				for (i = 0u; i < REMOTE_NR_SP; i++)
 					hsl[i] = from_le16(rxmsg->setpoints.sp[i]);
 				output_setpoint_convert_hsl2rgb(&hsl[0]);
-				output_setpoint_set(IF_MULTIPWM(0u,)
-						    true, 0u);
+				output_setpoint_set(IF_MULTIPWM(0u,) true, 0u);
+
+				/* Update setpoints in EEPROM. */
+				if (eedata && !(eedata->flags & EEPROM_FLAG_DIS)) {
+					eedata->flags |= EEPROM_FLAG_SPHSL;
+					build_assert(ARRAY_SIZE(eedata->setpoints) == REMOTE_NR_SP);
+					for (i = 0u; i < REMOTE_NR_SP; i++)
+						eedata->setpoints[i] = hsl[i];
+					eeprom_store_data();
+				}
 
 				txmsg->id = MSGID_ACK;
 			}
 		} else {
 			if (NR_PWM <= REMOTE_NR_SP &&
 			    rxmsg->setpoints.nr_sp <= NR_PWM) {
+				uint16_t rgb[REMOTE_NR_SP];
+
+				/* Update RGB output setpoints. */
 				for (i = 0u; i < rxmsg->setpoints.nr_sp; i++) {
-					output_setpoint_set(IF_MULTIPWM(i,)
-						false,
-						from_le16(rxmsg->setpoints.sp[i]));
+					rgb[i] = from_le16(rxmsg->setpoints.sp[i]);
+					output_setpoint_set(IF_MULTIPWM(i,) false, rgb[i]);
+				}
+				for (i = rxmsg->setpoints.nr_sp; i < NR_PWM; i++)
+					output_setpoint_set(IF_MULTIPWM(i,) false, 0u);
+
+				/* Update setpoints in EEPROM. */
+				if (eedata && !(eedata->flags & EEPROM_FLAG_DIS)) {
+					eedata->flags &= (uint8_t)~EEPROM_FLAG_SPHSL;
+					build_assert(ARRAY_SIZE(eedata->setpoints) == REMOTE_NR_SP);
+					for (i = 0u; i < rxmsg->setpoints.nr_sp; i++)
+						eedata->setpoints[i] = rgb[i];
+					for (i = rxmsg->setpoints.nr_sp; i < NR_PWM; i++)
+						eedata->setpoints[i] = 0u;
+					eeprom_store_data();
 				}
 
 				txmsg->id = MSGID_ACK;
@@ -409,6 +467,8 @@ static void remote_rx(uint8_t data)
 		if (data == MSG_MAGIC)
 			remote.rx.synchronized = true;
 	}
+
+	remote_update_standby_suppress();
 }
 
 /* Handle wake up from deep sleep.
@@ -431,6 +491,43 @@ void remote_handle_watchdog_interrupt(void)
 
 	remote.time_since_xfer_ms = add_sat_u16(remote.time_since_xfer_ms,
 						watchdog_interval_ms());
+
+	remote_update_standby_suppress();
+}
+
+/* Restore settings from EEPROM data.
+ * Called with interrupts disabled. */
+void remote_restore_from_eeprom(void)
+{
+	const struct eeprom_data *eedata;
+	uint8_t i;
+
+	if (!USE_REMOTE)
+		return;
+
+	eedata = eeprom_get_data();
+	if (!eedata)
+		return;
+
+	if (eedata->flags & EEPROM_FLAG_DIS)
+		return; /* EEPROM is disabled. */
+
+	if (eedata->flags & EEPROM_FLAG_ANADIS) {
+		adc_analogpins_enable(false);
+		if (eedata->flags & EEPROM_FLAG_SPHSL) {
+			if (NR_PWM == REMOTE_NR_SP) {
+				output_setpoint_convert_hsl2rgb(&eedata->setpoints[0]);
+				output_setpoint_set(IF_MULTIPWM(0u,) true, 0u);
+			}
+		} else {
+			for (i = 0u; i < NR_PWM; i++) {
+				output_setpoint_set(IF_MULTIPWM(i,)
+						    false,
+						    eedata->setpoints[i]);
+			}
+		}
+	} else
+		adc_analogpins_enable(true);
 
 	remote_update_standby_suppress();
 }

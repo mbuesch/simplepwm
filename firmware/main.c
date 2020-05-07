@@ -249,6 +249,7 @@ int _mainfunc main(void)
 	battery_init();
 
 	eeprom_init();
+	remote_restore_from_eeprom();
 
 	while (1) {
 		irq_disable();
