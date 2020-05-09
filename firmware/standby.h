@@ -4,10 +4,14 @@
 #include "util.h"
 #include "remote.h"
 #include "eeprom.h"
+#include "uart.h"
 
 
 enum standby_source {
 	STANDBY_SRC_ADC,
+#if USE_UART
+	STANDBY_SRC_UART,
+#endif
 #if USE_REMOTE
 	STANDBY_SRC_REMOTE,
 #endif
@@ -18,6 +22,9 @@ enum standby_source {
 	NR_STANDBY_SRC, /* Number of standby sources. */
 };
 
+#if !USE_UART
+# define STANDBY_SRC_UART	255 /* dummy */
+#endif
 #if !USE_REMOTE
 # define STANDBY_SRC_REMOTE	255 /* dummy */
 #endif

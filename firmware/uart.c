@@ -19,10 +19,14 @@
  */
 
 #include "compat.h"
-#include "debug.h"
-#include "util.h"
 #include "uart.h"
+
+#include "arithmetic.h"
+#include "debug.h"
 #include "pcint.h"
+#include "standby.h"
+#include "util.h"
+#include "watchdog.h"
 
 
 /* On wire data format:
@@ -61,6 +65,7 @@
 #define UART_RXD_PCINT	16
 #define UART_TXD_PCINT	17
 
+#define UART_STANDBY_DELAY_MS	600u
 
 #define FLG_8BIT	0x80u /* 8-bit data nibble */
 #define FLG_8BIT_UPPER	0x40u /* 8-bit upper data nibble */
@@ -78,13 +83,24 @@ static struct {
 		uint8_t buf;
 		uart_txready_cb_t ready_callback[UART_NR_CHAN];
 	} tx;
+
 	struct {
 		bool upper;
 		uint8_t buf;
 		uart_rx_cb_t callback[UART_NR_CHAN];
 	} rx;
+
+	uint16_t standby_delay_ms;
 } uart;
 
+
+static void uart_update_standby_suppress(void)
+{
+	if (USE_UART) {
+		set_standby_suppress(STANDBY_SRC_UART,
+				     uart.standby_delay_ms > 0u);
+	}
+}
 
 bool uart_tx_is_ready(enum uart_chan chan)
 {
@@ -220,22 +236,28 @@ void uart_register_callbacks(uart_txready_cb_t tx_ready,
 
 static void uart_enable(bool enable)
 {
-	if (enable) {
-		IF_UART(
-			UBRR0 = UBRRVAL;
-			UCSR0A = (1 << TXC0) | (!!(USE_2X) << U2X0) | (0 << MPCM0);
-			UCSR0C = (0 << UMSEL01) | (0 << UMSEL00) |
-				 (0 << UPM01) | (0 << UPM00) |
-				 (1 << USBS0) |
-				 (1 << UCSZ01) | (1 << UCSZ00);
-			UCSR0B = (1 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |
-				 (1 << RXEN0) | (1 << TXEN0) |
-				 (0 << UCSZ02);
-		)
-	} else {
-		IF_UART(
-			UCSR0B = 0u;
-		)
+	if (USE_UART) {
+		if (enable) {
+			uart.tx.upper = false;
+			uart.rx.upper = false;
+			memory_barrier();
+
+			IF_UART(
+				UBRR0 = UBRRVAL;
+				UCSR0A = (1 << TXC0) | (!!(USE_2X) << U2X0) | (0 << MPCM0);
+				UCSR0C = (0 << UMSEL01) | (0 << UMSEL00) |
+					 (0 << UPM01) | (0 << UPM00) |
+					 (1 << USBS0) |
+					 (1 << UCSZ01) | (1 << UCSZ00);
+				UCSR0B = (1 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |
+					 (1 << RXEN0) | (1 << TXEN0) |
+					 (0 << UCSZ02);
+			)
+		} else {
+			IF_UART(
+				UCSR0B = 0u;
+			)
+		}
 	}
 }
 
@@ -243,6 +265,7 @@ static void uart_rxd_pcint_handler(void)
 {
 	if (USE_UART) {
 		/* We woke up from deep sleep (power-down) by UART RX. */
+		uart.standby_delay_ms = UART_STANDBY_DELAY_MS;
 		system_handle_deep_sleep_wakeup();
 	}
 }
@@ -255,11 +278,25 @@ void uart_enter_deep_sleep(void)
 	}
 }
 
-void uart_exit_deep_sleep(void)
+/* Handle wake up from deep sleep.
+ * Called with interrupts disabled. */
+void uart_handle_deep_sleep_wakeup(void)
 {
 	if (USE_UART) {
 		pcint_enable(UART_RXD_PCINT, false);
 		uart_enable(true);
+		uart_update_standby_suppress();
+	}
+}
+
+/* Watchdog timer interrupt service routine
+ * Called with interrupts disabled. */
+void uart_handle_watchdog_interrupt(void)
+{
+	if (USE_UART) {
+		uart.standby_delay_ms = sub_sat_u16(uart.standby_delay_ms,
+						    watchdog_interval_ms());
+		uart_update_standby_suppress();
 	}
 }
 
@@ -267,11 +304,14 @@ void uart_init(void)
 {
 	uint8_t i;
 
-	for (i = 0u; i < UART_NR_CHAN; i++) {
-		uart.tx.ready_callback[i] = NULL;
-		uart.rx.callback[i] = NULL;
+	if (USE_UART) {
+		for (i = 0u; i < UART_NR_CHAN; i++) {
+			uart.tx.ready_callback[i] = NULL;
+			uart.rx.callback[i] = NULL;
+		}
+		pcint_register_callback(UART_RXD_PCINT, uart_rxd_pcint_handler);
+		uart_update_standby_suppress();
+		memory_barrier();
+		uart_enable(true);
 	}
-	pcint_register_callback(UART_RXD_PCINT, uart_rxd_pcint_handler);
-	memory_barrier();
-	uart_enable(true);
 }

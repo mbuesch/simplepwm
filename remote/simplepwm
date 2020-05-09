@@ -323,8 +323,8 @@ class SimplePWM(object):
 			return
 		count = 0
 		while True:
-			self.__synchronize()
 			try:
+				self.__synchronize()
 				self.ping(0.1)
 			except SimplePWMError as e:
 				count += 1
@@ -336,7 +336,7 @@ class SimplePWM(object):
 
 	def __tx_8bit(self, data):
 		self.__wakeup()
-#		printDebug("TX:", bytes(data))
+#		printDebug(f"TX: {bytes(data)}")
 		for d in data:
 			lo = ((d & self.MSK_4BIT) |
 			      self.FLG_8BIT)
@@ -355,7 +355,7 @@ class SimplePWM(object):
 			self.__debugBuf.clear()
 
 	def __rx_8bit(self, dataByte):
-#		printDebug("RX:", dataByte)
+#		printDebug(f"RX: {dataByte}")
 		d = dataByte[0]
 		if d & self.FLG_8BIT_UPPER:
 			data = (self.__rxByte & self.MSK_4BIT)

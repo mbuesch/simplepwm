@@ -35,7 +35,8 @@ void uart_register_callbacks(uart_txready_cb_t tx_ready,
 			     enum uart_chan chan);
 
 void uart_enter_deep_sleep(void);
-void uart_exit_deep_sleep(void);
+void uart_handle_deep_sleep_wakeup(void);
+void uart_handle_watchdog_interrupt(void);
 void uart_init(void);
 
 #endif /* UART_H_ */

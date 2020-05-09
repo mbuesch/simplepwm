@@ -177,9 +177,9 @@ void system_handle_deep_sleep_wakeup(void)
 			/* Re-enable all used peripherals. */
 			output_setpoint_wakeup();
 			power_reduction(false);
-			uart_exit_deep_sleep();
 			standby_handle_deep_sleep_wakeup();
 
+			uart_handle_deep_sleep_wakeup();
 			adc_handle_deep_sleep_wakeup();
 			remote_handle_deep_sleep_wakeup();
 			eeprom_handle_deep_sleep_wakeup();
@@ -201,6 +201,7 @@ void system_handle_watchdog_interrupt(void)
 		standby_handle_watchdog_interrupt(wakeup_from_standby);
 	}
 
+	uart_handle_watchdog_interrupt();
 	remote_handle_watchdog_interrupt();
 	battery_handle_watchdog_interrupt();
 	eeprom_handle_watchdog_interrupt();
