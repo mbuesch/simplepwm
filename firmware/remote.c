@@ -135,8 +135,8 @@ static struct {
 static void remote_update_standby_suppress(void)
 {
 	bool standby_suppress;
-//	uint8_t i;
-//	bool all_zero;
+	uint8_t i;
+	bool all_zero;
 
 	if (!USE_REMOTE)
 		return;
@@ -147,12 +147,11 @@ static void remote_update_standby_suppress(void)
 		standby_suppress = true;
 
 	if (!adc_analogpins_enabled()) {
-/*TODO
+		/* If any output is enabled, don't go to sleep. */
 		all_zero = true;
 		for (i = 0u; i < NR_PWM; i++)
 			all_zero &= output_setpoint_get(i, false) == 0u;
 		if (!all_zero)
-*/
 			standby_suppress = true;
 	}
 
