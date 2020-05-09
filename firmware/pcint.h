@@ -15,6 +15,7 @@
 
 typedef void (*pcint_callback_t)(void);
 
+void pcint_clear_irq(uint8_t index);
 void pcint_enable(uint8_t index, bool enable);
 void pcint_register_callback(uint8_t index, pcint_callback_t cb);
 

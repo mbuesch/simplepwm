@@ -95,13 +95,32 @@ PCINT_ISR(1)
 PCINT_ISR(2)
 #endif /* USE_PCINT */
 
+#define CASE_CLRIF(_regnr)					\
+	case _regnr:						\
+		PCIFR = (1u << PCIF##_regnr);			\
+		break;
+
+void pcint_clear_irq(uint8_t index)
+{
+#if USE_PCINT
+	switch (pcint_to_regnr(index)) {
+	default:
+	CASE_CLRIF(0);
+	CASE_CLRIF(1);
+	CASE_CLRIF(2);
+	}
+#endif /* USE_PCINT */
+}
+
 #define UPDATE_PCICR(_regnr)						\
 	do {								\
 		if (PCMSK##_regnr == 0u) {				\
 			PCICR &= (uint8_t)~(1u << PCIE##_regnr);	\
 		} else {						\
-			PCIFR = (1u << PCIF##_regnr);			\
-			PCICR |= (1u << PCIE##_regnr);			\
+			if (!(PCICR & (1u << PCIE##_regnr))) {		\
+				PCIFR = (1u << PCIF##_regnr);		\
+				PCICR |= (1u << PCIE##_regnr);		\
+			}						\
 		}							\
 	} while (0)
 
