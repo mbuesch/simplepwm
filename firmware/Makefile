@@ -5,7 +5,6 @@
 #	t25	=> ATTiny25 with reduced feature set.
 #	t45	=> ATTiny45 with full feature set for one PWM.
 #	t85	=> ATTiny85 with full feature set for one PWM.
-#	m88p	=> ATMega88P with full feature set for three PWM (RGB).
 #	m328p	=> ATMega328P with full feature set for three PWM (RGB).
 DEV			:= t85
 
@@ -93,14 +92,6 @@ LFUSE			:= 0xD2
 HFUSE			:= 0xDD
 EFUSE			:= 0xFF
 endif
-ifeq ($(DEV),m88p)
-# ATMega 88P
-# 8 MHz, SUT 4.1 ms, BOD 2.7 V, WDT off, SPIEN
-F_CPU			:= 8000000UL
-LFUSE			:= 0xD2
-HFUSE			:= 0xDD
-EFUSE			:= 0xF9
-endif
 ifeq ($(DEV),m328p)
 # ATMega 328P
 # 8 MHz, SUT 4.1 ms, BOD 2.7 V, WDT off, SPIEN
@@ -144,7 +135,6 @@ ifeq ($(strip $(call deveq,t13)\
 	      $(call deveq,t25)\
 	      $(call deveq,t45)\
 	      $(call deveq,t85)\
-	      $(call deveq,m88p)\
 	      $(call deveq,m328p)),)
 $(error "DEV=$(DEV) is not supported.")
 endif
