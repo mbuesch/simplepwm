@@ -23,10 +23,11 @@
 #include "eeprom.h"
 
 #include "arithmetic.h"
+#include "debug.h"
 #include "ring.h"
 #include "standby.h"
+#include "util.h"
 #include "watchdog.h"
-#include "debug.h"
 
 
 #define EEPROM_STORE_DELAY_MS	1500u
@@ -55,12 +56,13 @@ static struct eeprom_data EEMEM eep_addrspace[EE_RING_SIZE] = {
 
 
 static struct {
-	struct eeprom_data cache;
-	uint8_t ee_index;
-	uint8_t ee_write_offset;
-	uint16_t store_timer_ms;
-	bool store_request;
-	bool store_running;
+	struct eeprom_data shadow_copy;	/* Copy of EEPROM. */
+	struct eeprom_data work_copy;	/* Copy that can be modified. */
+	uint8_t ee_index;		/* Ring index. */
+	uint8_t ee_write_offset;	/* Byte offset of current write. */
+	uint16_t store_timer_ms;	/* Store delay timer. */
+	bool store_request;		/* EEPROM write has been requested. */
+	bool store_running;		/* EEPROM write is currently running. */
 } eep;
 
 
@@ -118,7 +120,7 @@ ISR(EE_READY_vect)
 	offset = eep.ee_write_offset;
 
 	address = ptr_to_eeaddr(&eep_addrspace[index]) + offset;
-	data = *((uint8_t *)&eep.cache + offset);
+	data = *((uint8_t *)&eep.work_copy + offset);
 
 	EEAR = address;
 	/* Read the byte. */
@@ -139,9 +141,12 @@ ISR(EE_READY_vect)
 	if (offset >= sizeof(struct eeprom_data)) {
 		/* Done writing. Disable the interrupt. */
 		EECR &= (uint8_t)~(1u << EERIE);
+
+		/* Finalize write. Update shadow copy. */
+		eep.shadow_copy = eep.work_copy;
 		eep.store_running = false;
 		eeprom_update_standby_suppress();
-		dprintf("EEPROM write end.\r\n");
+		dprintf("EEPROM write done.\r\n");
 	}
 }
 #endif /* USE_EEPROM */
@@ -151,26 +156,34 @@ ISR(EE_READY_vect)
 static void eeprom_trigger_store(void)
 {
 	if (USE_EEPROM) {
-		dprintf("EEPROM write start.\r\n");
+		if (memcmp(&eep.work_copy,
+			   &eep.shadow_copy,
+			   sizeof(eep.work_copy)) == 0) {
+			/* The data did not change. */
+			dprintf("EEPROM write not necessary.\r\n");
+		} else {
+			dprintf("EEPROM write start.\r\n");
+
+			eep.store_running = true;
+
+			/* Avoid standby during eeprom write. */
+			eeprom_update_standby_suppress();
+
+			/* Increment the serial number. This might wrap. */
+			eep.work_copy.serial++;
+
+			/* Increment the store index. */
+			eep.ee_index = ring_next(eep.ee_index, EE_RING_MAX_INDEX);
+
+			/* Reset the store byte offset. */
+			eep.ee_write_offset = 0u;
+
+			/* Enable the eeprom-ready interrupt.
+			 * It will fire, if the EEPROM is ready. */
+			EECR |= (1u << EERIE);
+		}
 
 		eep.store_request = false;
-		eep.store_running = true;
-
-		/* Avoid standby during eeprom write. */
-		eeprom_update_standby_suppress();
-
-		/* Increment the serial number. This might wrap. */
-		eep.cache.serial++;
-
-		/* Increment the store index. */
-		eep.ee_index = ring_next(eep.ee_index, EE_RING_MAX_INDEX);
-
-		/* Reset the store byte offset. */
-		eep.ee_write_offset = 0u;
-
-		/* Enable the eeprom-ready interrupt.
-		 * It will fire, if the EEPROM is ready. */
-		EECR |= (1u << EERIE);
 	}
 }
 
@@ -178,7 +191,7 @@ static void eeprom_trigger_store(void)
 struct eeprom_data * eeprom_get_data(void)
 {
 	if (USE_EEPROM)
-		return &eep.cache;
+		return &eep.work_copy;
 	return NULL;
 }
 
@@ -249,9 +262,10 @@ void eeprom_init(void)
 	eep.ee_index = found_index;
 
 	/* Read settings from EEPROM. */
-	ee_read_block(&eep.cache,
+	ee_read_block(&eep.work_copy,
 		      ptr_to_eeaddr(&eep_addrspace[found_index]),
-		      sizeof(eep.cache));
+		      sizeof(eep.work_copy));
+	eep.shadow_copy = eep.work_copy;
 
 	eeprom_update_standby_suppress();
 }
