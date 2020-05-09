@@ -193,8 +193,10 @@ ISR(USART_RX_vect)
 						uart.rx.callback[UART_CHAN_8BIT_0](data);
 				}
 			} else {
-				uart.rx.upper = true;
-				uart.rx.buf = data;
+				if (!(data & FLG_8BIT_UPPER)) {
+					uart.rx.upper = true;
+					uart.rx.buf = data;
+				}
 			}
 		} else {
 			uart.rx.upper = false;
