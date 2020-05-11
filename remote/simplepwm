@@ -181,7 +181,7 @@ class SimplePWMMsg_Control(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_CONTROL
 
 	MSG_CTLFLG_ANADIS	= 0x01
-	MSG_CTLFLG_EEPDIS	= 0x02 #TODO
+	MSG_CTLFLG_EEPDIS	= 0x02
 
 	@classmethod
 	def _parse(cls, payload):
@@ -422,27 +422,42 @@ class SimplePWM(object):
 		if not rxMsg:
 			raise SimplePWMError("Ping failed.")
 
-	def getAnalogEn(self, timeout=None):
+	def __getControlFlags(self, timeout=None):
 		self.__tx_message(SimplePWMMsg_GetControl())
 		rxMsg = self.__waitRxMsg(SimplePWMMsg_Control, timeout)
 		if not rxMsg:
 			raise SimplePWMError("Failed to get control info.")
-		return not (rxMsg.flags & rxMsg.MSG_CTLFLG_ANADIS)
+		return rxMsg.flags
 
-	def setAnalogEn(self, enable, timeout=None):
+	def __setControlFlags(self, flagsMask, flagsSet, timeout=None):
 		self.__tx_message(SimplePWMMsg_GetControl())
 		rxMsg = self.__waitRxMsg(SimplePWMMsg_Control, timeout)
 		if not rxMsg:
 			raise SimplePWMError("Failed to get control info.")
 		txMsg = rxMsg
-		if enable:
-			txMsg.flags &= ~txMsg.MSG_CTLFLG_ANADIS
-		else:
-			txMsg.flags |= txMsg.MSG_CTLFLG_ANADIS
+		txMsg.flags = (txMsg.flags & ~flagsMask) | flagsSet
 		self.__tx_message(txMsg)
 		rxMsg = self.__waitRxMsg(SimplePWMMsg_Ack, timeout)
 		if not rxMsg:
 			raise SimplePWMError("Failed to get acknowledge.")
+
+	def getEepromEn(self, timeout=None):
+		return not (self.__getControlFlags(timeout) &
+				SimplePWMMsg_Control.MSG_CTLFLG_EEPDIS)
+
+	def setEepromEn(self, enable, timeout=None):
+		self.__setControlFlags(SimplePWMMsg_Control.MSG_CTLFLG_EEPDIS,
+				       0 if enable else SimplePWMMsg_Control.MSG_CTLFLG_EEPDIS,
+				       timeout)
+
+	def getAnalogEn(self, timeout=None):
+		return not (self.__getControlFlags(timeout) &
+				SimplePWMMsg_Control.MSG_CTLFLG_ANADIS)
+
+	def setAnalogEn(self, enable, timeout=None):
+		self.__setControlFlags(SimplePWMMsg_Control.MSG_CTLFLG_ANADIS,
+				       0 if enable else SimplePWMMsg_Control.MSG_CTLFLG_ANADIS,
+				       timeout)
 
 	def getRGB(self, timeout=None):
 		self.__tx_message(SimplePWMMsg_GetSetpoints(
@@ -547,6 +562,10 @@ def main():
 			       help="Send a ping to the device and wait for pong reply.")
 		p.add_argument("-b", "--get-battery", action="store_true",
 			       help="Get the battery voltage.")
+		p.add_argument("-e", "--get-eeprom-enable", action="store_true",
+			       help="Get the state of the EEPROM.")
+		p.add_argument("-E", "--eeprom-enable", type=int, default=None,
+			       help="Enable/disable the EEPROM.")
 		p.add_argument("-a", "--get-analog", action="store_true",
 			       help="Get the state of the analog inputs.")
 		p.add_argument("-A", "--analog", type=int, default=None,
@@ -593,6 +612,12 @@ def main():
 						      f"measured {meas/1000:.2f} V, "
 						      f"drop {drop/1000:.2f} V, "
 						      f"actual {(meas+drop)/1000:.2f} V")
+				if name == "eeprom-enable":
+					s.setEepromEn(value)
+				if name == "get-eeprom-enable":
+					if value:
+						enabled = "enabled" if s.getEepromEn() else "disabled"
+						print(f"EEPROM: {enabled}")
 				if name == "analog":
 					s.setAnalogEn(value)
 				if name == "get-analog":
