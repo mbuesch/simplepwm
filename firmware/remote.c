@@ -235,6 +235,9 @@ static void tx_start(struct remote_msg *msg)
 			(to) = (__typeof__(to))((to) & ~(to_mask));	\
 	} while (0)
 
+#define copy_flag_from_bool(to, to_mask, from)				\
+	copy_flag(to, to_mask, (bool)(from), (bool)-1)
+
 /* Handle a received message.
  * Called with interrupts disabled. */
 static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
@@ -279,8 +282,12 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 			goto error_txalloc;
 
 		txmsg->id = MSGID_CONTROL;
-		if (!adc_analogpins_enabled())
-			txmsg->control.flags |= MSG_CTLFLG_ANADIS;
+
+		copy_flag_from_bool(txmsg->control.flags, MSG_CTLFLG_ANADIS,
+				    !adc_analogpins_enabled());
+
+		copy_flag_from_bool(txmsg->control.flags, MSG_CTLFLG_EEPDIS,
+				    !eeprom_enabled(eedata));
 
 		tx_start(txmsg);
 		break;
@@ -290,10 +297,7 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 			goto error_txalloc;
 
 		/* Update control settings. */
-		if (rxmsg->control.flags & MSG_CTLFLG_ANADIS)
-			adc_analogpins_enable(false);
-		else
-			adc_analogpins_enable(true);
+		adc_analogpins_enable(!(rxmsg->control.flags & MSG_CTLFLG_ANADIS));
 
 		/* Update settings in EEPROM. */
 		if (eedata) {
