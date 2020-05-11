@@ -19,6 +19,7 @@ Number of PWM outputs              3           1          1          1          
 Battery power saving               x           x          x
 Battery voltage monitoring         x           x          x
 HSL color model                    x
+Remote control via UART            x
 Debugging via UART                 x
 ============================  ===========  =========  =========  =========  =========
 
