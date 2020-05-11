@@ -224,6 +224,17 @@ static void tx_start(struct remote_msg *msg)
 	remote.time_since_xfer_ms = 0u;
 }
 
+#define flags_equal(first, first_mask, second, second_mask)		\
+	(!!((first) & (first_mask)) == !!((second) & (second_mask)))
+
+#define copy_flag(to, to_mask, from, from_mask)				\
+	do {								\
+		if ((from) & (from_mask))				\
+			(to) = (__typeof__(to))((to) | (to_mask));	\
+		else							\
+			(to) = (__typeof__(to))((to) & ~(to_mask));	\
+	} while (0)
+
 /* Handle a received message.
  * Called with interrupts disabled. */
 static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
@@ -286,19 +297,20 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 
 		/* Update settings in EEPROM. */
 		if (eedata) {
-			if (rxmsg->control.flags & MSG_CTLFLG_EEPDIS)
-				eedata->flags |= EEPROM_FLAG_DIS;
-			else
-				eedata->flags &= (uint8_t)~EEPROM_FLAG_DIS;
-
-			if (!(eedata->flags & EEPROM_FLAG_DIS)) {
-				if (rxmsg->control.flags & MSG_CTLFLG_ANADIS)
-					eedata->flags |= EEPROM_FLAG_ANADIS;
-				else
-					eedata->flags &= (uint8_t)~EEPROM_FLAG_ANADIS;
+			/* Update EEPROM-enable status, if it changed. */
+			if (!flags_equal(eedata->flags, EEPROM_FLAG_DIS,
+					 rxmsg->control.flags, MSG_CTLFLG_EEPDIS)) {
+				copy_flag(eedata->flags, EEPROM_FLAG_DIS,
+					  rxmsg->control.flags, MSG_CTLFLG_EEPDIS);
+				eeprom_store_data();
 			}
 
-			eeprom_store_data();
+			if (eeprom_enabled(eedata)) {
+				/* Update analog-input status. */
+				copy_flag(eedata->flags, EEPROM_FLAG_ANADIS,
+					  rxmsg->control.flags, MSG_CTLFLG_ANADIS);
+				eeprom_store_data();
+			}
 		}
 
 		txmsg->id = MSGID_ACK;
@@ -361,7 +373,7 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 				output_setpoint_set(IF_MULTIPWM(0u,) true, 0u);
 
 				/* Update setpoints in EEPROM. */
-				if (eedata && !(eedata->flags & EEPROM_FLAG_DIS)) {
+				if (eeprom_enabled(eedata)) {
 					eedata->flags |= EEPROM_FLAG_SPHSL;
 					build_assert(ARRAY_SIZE(eedata->setpoints) == REMOTE_NR_SP);
 					for (i = 0u; i < REMOTE_NR_SP; i++)
@@ -385,7 +397,7 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 					output_setpoint_set(IF_MULTIPWM(i,) false, 0u);
 
 				/* Update setpoints in EEPROM. */
-				if (eedata && !(eedata->flags & EEPROM_FLAG_DIS)) {
+				if (eeprom_enabled(eedata)) {
 					eedata->flags &= (uint8_t)~EEPROM_FLAG_SPHSL;
 					build_assert(ARRAY_SIZE(eedata->setpoints) == REMOTE_NR_SP);
 					for (i = 0u; i < rxmsg->setpoints.nr_sp; i++)
@@ -505,11 +517,8 @@ void remote_restore_from_eeprom(void)
 		return;
 
 	eedata = eeprom_get_data();
-	if (!eedata)
+	if (!eeprom_enabled(eedata))
 		return;
-
-	if (eedata->flags & EEPROM_FLAG_DIS)
-		return; /* EEPROM is disabled. */
 
 	if (eedata->flags & EEPROM_FLAG_ANADIS) {
 		adc_analogpins_enable(false);

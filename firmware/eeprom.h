@@ -29,6 +29,10 @@ struct eeprom_data {
 	uint8_t serial;
 };
 
+static inline bool eeprom_enabled(const struct eeprom_data *d)
+{
+	return d && !(d->flags & EEPROM_FLAG_DIS);
+}
 
 struct eeprom_data * eeprom_get_data(void);
 void eeprom_store_data(void);
