@@ -315,13 +315,13 @@ ISR(ADC_vect)
 			} else {
 				/* Normal operation mode. */
 
-				if (ADC_INVERT)
+				if (CONF_ADCINVERT)
 					raw_adc = ADC_MAX - raw_adc;
 
 				index = (NR_ADC > 1u) ? adc.index : 0u;
 
 				output_setpoint_transform(IF_MULTIPWM(index,)
-							  ADC_HSL,
+							  CONF_ADCHSL,
 							  raw_adc,
 							  &raw_setpoint,
 							  &filt_setpoint);
@@ -339,7 +339,7 @@ ISR(ADC_vect)
 				/* Change the output signal (PWM). */
 				if (adc_analogpins_enabled()) {
 					output_setpoint_set(IF_MULTIPWM(index,)
-							    ADC_HSL,
+							    CONF_ADCHSL,
 							    filt_setpoint);
 				}
 

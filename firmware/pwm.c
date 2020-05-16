@@ -32,7 +32,7 @@
 
 /* Logical PWM limits */
 #define PWM_NEGLIM		(PWM_MIN + 0u)
-#define PWM_POSLIM		((uint8_t)((PWM_MAX * PWM_LIM) / 100u))
+#define PWM_POSLIM		((uint8_t)((PWM_MAX * CONF_PWMLIM) / 100u))
 
 /* High resolution setpoint threshold */
 #define PWM_HIGHRES_SP_THRES	0x9FFu
@@ -62,7 +62,7 @@
 # error
 #endif
 
-#if PWM_INVERT
+#if CONF_PWMINVERT
 # define ASM_PWM0_OUT_HIGH	"cbi %[_OUT0_PORT], %[_OUT0_BIT] \n"
 # define ASM_PWM0_OUT_LOW	"sbi %[_OUT0_PORT], %[_OUT0_BIT] \n"
 # define ASM_PWM1_OUT_HIGH	"cbi %[_OUT1_PORT], %[_OUT1_BIT] \n"
@@ -164,17 +164,17 @@ static inline void pwm_hw_count_reset(uint8_t index)
 	switch (index) {
 #if NR_PWM >= 1
 	case 0u:
-		TCNT0 = PWM_INVERT ? 0u : 0xFFu;
+		TCNT0 = CONF_PWMINVERT ? 0u : 0xFFu;
 		break;
 #endif
 #if NR_PWM >= 2
 	case 1u:
-		TCNT1 = PWM_INVERT ? 0u : 0xFFu;
+		TCNT1 = CONF_PWMINVERT ? 0u : 0xFFu;
 		break;
 #endif
 #if NR_PWM >= 3
 	case 2u:
-		TCNT2 = PWM_INVERT ? 0u : 0xFFu;
+		TCNT2 = CONF_PWMINVERT ? 0u : 0xFFu;
 		break;
 #endif
 	}
@@ -385,7 +385,7 @@ static inline void pwm_hw_set_operation_mode(uint8_t index, uint8_t mode)
 /* Set the PWM output port state. */
 static inline void port_out_set(uint8_t index, bool high)
 {
-	if (high ^ PWM_INVERT)
+	if (high ^ CONF_PWMINVERT)
 		pwm_hw_pin_set(index, true);
 	else
 		pwm_hw_pin_set(index, false);
@@ -465,7 +465,7 @@ void pwm_sp_set(IF_MULTIPWM(uint8_t index,) uint16_t setpoint)
 		pwm_duty += PWM_NEGLIM;
 
 		/* Invert the PWM, if required. */
-		if (!PWM_INVERT)
+		if (!CONF_PWMINVERT)
 			pwm_duty = (uint8_t)(PWM_MAX - pwm_duty);
 
 		/* Store the setpoint for use by TIM0_OVF interrupt. */

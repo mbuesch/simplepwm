@@ -47,10 +47,10 @@ ISR(TIMER%INDEX%_OVF_vect)
 			ASM_PWM%INDEX%_OUT_LOW
 		: : ASM_INPUTS
 		: );
-#if SMALL_DEVICE
-	} else if (delay_count == 2u || delay_count == 3u) {
-#else
+#if FEAT_HIGHRES
 	} else if (delay_count == 2u) {
+#else
+	} else if (delay_count == 2u || delay_count == 3u) {
 #endif
 		/* 2 clocks delay */
 
@@ -60,7 +60,7 @@ ISR(TIMER%INDEX%_OVF_vect)
 			ASM_PWM%INDEX%_OUT_LOW
 		: : ASM_INPUTS
 		: );
-#if !SMALL_DEVICE
+#if FEAT_HIGHRES
 	} else if (delay_count / 3u <= 0xFFu) {
 		/* 3 clocks per loop iteration
 		 * -> divide count */
@@ -77,7 +77,7 @@ ISR(TIMER%INDEX%_OVF_vect)
 			  ASM_INPUTS
 			: );
 		}
-#endif /* !SMALL_DEVICE */
+#endif /* FEAT_HIGHRES */
 	} else {
 		/* 4 clocks per loop iteration
 		 * -> divide count */

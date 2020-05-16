@@ -17,22 +17,11 @@
 #endif
 
 
-/* If this is a small device with small flash size,
- * set SMALL_DEVICE to 1. */
-#if defined(__AVR_ATtiny13__) || defined(__AVR_ATtiny25__)
-# define SMALL_DEVICE		1
-#else
-# define SMALL_DEVICE		0
-#endif
-
-
-/* Sleep mode and battery monitoring. */
-#if SMALL_DEVICE
-# define USE_DEEP_SLEEP		0
-# define USE_BAT_MONITOR	0
-#else
+/* Sleep mode. */
+#if FEAT_POWERSAVE
 # define USE_DEEP_SLEEP		1
-# define USE_BAT_MONITOR	1
+#else
+# define USE_DEEP_SLEEP		0
 #endif
 
 

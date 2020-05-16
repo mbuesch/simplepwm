@@ -9,16 +9,72 @@
 #	m328p	=> ATMega328P with full feature set for three PWM (RGB).
 DEV			:= t85
 
-# Limit the maximum PWM duty cycle to this percentage:
-PWM_LIM			:= 100
-# Invert the PWM output signal?
-PWM_INVERT		:= 0
-
-# Invert the ADC input signal?
-ADC_INVERT		:= 0
-
-# Interpret the ADC setpoints as HSL instead of RGB, if 3 ADCs are available?
-ADC_HSL			:= 1
+ifeq ($(DEV),t13) # ATTiny 13
+CONF_PWMLIM		:= 100
+CONF_PWMINVERT		:= 0
+CONF_ADCINVERT		:= 0
+CONF_ADCHSL		:= 0
+FEAT_HIGHRES		:= 0
+FEAT_BATTERY		:= 0
+FEAT_POWERSAVE		:= 0
+FEAT_REMOTE		:= 0
+FEAT_EEPROM		:= 0
+endif
+ifeq ($(DEV),t25) # ATTiny 25
+CONF_PWMLIM		:= 100
+CONF_PWMINVERT		:= 0
+CONF_ADCINVERT		:= 0
+CONF_ADCHSL		:= 0
+FEAT_HIGHRES		:= 0
+FEAT_BATTERY		:= 0
+FEAT_POWERSAVE		:= 0
+FEAT_REMOTE		:= 0
+FEAT_EEPROM		:= 0
+endif
+ifeq ($(DEV),t45) # ATTiny 45
+CONF_PWMLIM		:= 100
+CONF_PWMINVERT		:= 0
+CONF_ADCINVERT		:= 0
+CONF_ADCHSL		:= 0
+FEAT_HIGHRES		:= 1
+FEAT_BATTERY		:= 1
+FEAT_POWERSAVE		:= 1
+FEAT_REMOTE		:= 0
+FEAT_EEPROM		:= 0
+endif
+ifeq ($(DEV),t85) # ATTiny 85
+CONF_PWMLIM		:= 100
+CONF_PWMINVERT		:= 0
+CONF_ADCINVERT		:= 0
+CONF_ADCHSL		:= 0
+FEAT_HIGHRES		:= 1
+FEAT_BATTERY		:= 1
+FEAT_POWERSAVE		:= 1
+FEAT_REMOTE		:= 0
+FEAT_EEPROM		:= 0
+endif
+ifeq ($(DEV),m88p) # ATMega 88P
+CONF_PWMLIM		:= 100
+CONF_PWMINVERT		:= 0
+CONF_ADCINVERT		:= 0
+CONF_ADCHSL		:= 1
+FEAT_HIGHRES		:= 1
+FEAT_BATTERY		:= 0
+FEAT_POWERSAVE		:= 1
+FEAT_REMOTE		:= 1
+FEAT_EEPROM		:= 1
+endif
+ifeq ($(DEV),m328p) # ATMega 328P
+CONF_PWMLIM		:= 100
+CONF_PWMINVERT		:= 0
+CONF_ADCINVERT		:= 0
+CONF_ADCHSL		:= 1
+FEAT_HIGHRES		:= 1
+FEAT_BATTERY		:= 1
+FEAT_POWERSAVE		:= 1
+FEAT_REMOTE		:= 1
+FEAT_EEPROM		:= 1
+endif
 
 
 
@@ -26,7 +82,17 @@ ADC_HSL			:= 1
 ##############################################################################
 ##############################################################################
 
-$(info DEV=$(DEV) PWM_LIM=$(PWM_LIM) PWM_INVERT=$(PWM_INVERT) ADC_INVERT=$(ADC_INVERT) ADC_HSL=$(ADC_HSL))
+$(info	DEV=$(DEV) \
+	CONF_PWMLIM=$(CONF_PWMLIM) \
+	CONF_PWMINVERT=$(CONF_PWMINVERT) \
+	CONF_ADCINVERT=$(CONF_ADCINVERT) \
+	CONF_ADCHSL=$(CONF_ADCHSL) \
+	FEAT_HIGHRES=$(FEAT_HIGHRES) \
+	FEAT_BATTERY=$(FEAT_BATTERY) \
+	FEAT_POWERSAVE=$(FEAT_POWERSAVE) \
+	FEAT_REMOTE=$(FEAT_REMOTE) \
+	FEAT_EEPROM=$(FEAT_EEPROM) \
+)
 
 # Project name
 NAME			:= simplepwm
@@ -126,10 +192,15 @@ INSTRUMENT_FUNC		:=
 BOOT_INSTRUMENT_FUNC	:=
 
 # Additional compiler flags
-CFLAGS			:= -DPWM_LIM="$(PWM_LIM)" \
-			   -DPWM_INVERT="(!!($(PWM_INVERT)))" \
-			   -DADC_INVERT="(!!($(ADC_INVERT)))" \
-			   -DADC_HSL="$(ADC_HSL)"
+CFLAGS			:= -DCONF_PWMLIM="$(CONF_PWMLIM)" \
+			   -DCONF_PWMINVERT="(!!($(CONF_PWMINVERT)))" \
+			   -DCONF_ADCINVERT="(!!($(CONF_ADCINVERT)))" \
+			   -DCONF_ADCHSL="(!!($(CONF_ADCHSL)))" \
+			   -DFEAT_HIGHRES="(!!($(FEAT_HIGHRES)))" \
+			   -DFEAT_BATTERY="(!!($(FEAT_BATTERY)))" \
+			   -DFEAT_POWERSAVE="(!!($(FEAT_POWERSAVE)))" \
+			   -DFEAT_REMOTE="(!!($(FEAT_REMOTE)))" \
+			   -DFEAT_EEPROM="(!!($(FEAT_EEPROM)))"
 LDFLAGS			:=
 
 # Additional "clean" and "distclean" target files

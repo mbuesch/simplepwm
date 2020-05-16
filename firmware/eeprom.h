@@ -5,14 +5,22 @@
 #include "remote.h"
 
 
-#if USE_REMOTE
-# define USE_EEPROM	1
-# define IF_EEPROM(...)	__VA_ARGS__
+#if FEAT_EEPROM
+# if IS_ATMEGAx8
+#  define USE_EEPROM	1
+# else
+#  warning "EEPROM storage not possible on this device."
+#  define USE_EEPROM	0
+# endif
 #else
 # define USE_EEPROM	0
-# define IF_EEPROM(...)	/* nothing */
 #endif
 
+#if USE_EEPROM
+# define IF_EEPROM(...)	__VA_ARGS__
+#else
+# define IF_EEPROM(...)	/* nothing */
+#endif
 
 #define EEPROM_NR_SETPOINTS	3u
 

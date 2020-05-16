@@ -52,7 +52,7 @@ void potentiometer_enable(bool enable)
 			POTEN_DDR |= (1 << POTEN_LO_BIT);
 		} else {
 			/* Switch pot power supply to high impedance input. */
-			if (ADC_INVERT) {
+			if (CONF_ADCINVERT) {
 				/* HI = driven */
 				POTEN_PORT |= (1 << POTEN_HI_BIT);
 				POTEN_DDR |= (1 << POTEN_HI_BIT);

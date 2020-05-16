@@ -4,6 +4,12 @@
 #include "main.h"
 #include "util.h"
 
+#if FEAT_BATTERY
+# define USE_BAT_MONITOR	1
+#else
+# define USE_BAT_MONITOR	0
+#endif
+
 
 void set_battery_mon_interval(uint16_t seconds);
 void battery_update_setpoint(void);

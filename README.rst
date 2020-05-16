@@ -75,14 +75,19 @@ ATMega 328P      `DEV=m328p`
 
 Additional build options that can be passed to `make`:
 
-===========  ======  =======  ================================================================
-make option  values  default  description
-===========  ======  =======  ================================================================
-PWM_LIM      1-100   100      Limit the maximum PWM duty cycle to this percentage.
-PWM_INVERT   0-1     0        Invert the PWM output signal(s).
-ADC_INVERT   0-1     0        Invert the ADC input signal(s).
-ADC_HSL      0-1     1        Interpret the ADC input signals as HSL setpoints instead of RGB.
-===========  ======  =======  ================================================================
+===============  ======  ==============  ================================================================
+make option      values  default         description
+===============  ======  ==============  ================================================================
+CONF_PWMLIM      1-100   100             Limit the maximum PWM duty cycle to this percentage.
+CONF_PWMINVERT   0-1     0               Invert the PWM output signal(s).
+CONF_ADCINVERT   0-1     0               Invert the ADC input signal(s).
+CONF_ADCHSL      0-1     depends on DEV  Interpret the ADC input signals as HSL setpoints instead of RGB.
+FEAT_HIGHRES     0-1     depends on DEV  Higher resolution in very low PWM setpoint range.
+FEAT_BATTERY     0-1     depends on DEV  Battery voltage monitoring
+FEAT_POWERSAVE   0-1     depends on DEV  Power saving / deep sleep
+FEAT_REMOTE      0-1     depends on DEV  Remote control via UART
+FEAT_EEPROM      0-1     depends on DEV  Store settings to EEPROM
+===============  ======  ==============  ================================================================
 
 
 Flashing the firmware after build

@@ -41,11 +41,6 @@ static struct {
 } system;
 
 
-#if SMALL_DEVICE
-# warning "Deep sleep and battery monitoring disabled on small microcontroller (t13/t25)."
-#endif
-
-
 /* Main loop debug indicator. */
 #define USE_MAINLOOPDBG		(DEBUG && IS_ATMEGAx8)
 #if USE_MAINLOOPDBG
@@ -57,7 +52,7 @@ static struct {
 /* Initialize I/O ports. */
 static void ports_init(void)
 {
-	const uint8_t P = (PWM_INVERT ? 1 : 0);
+	const uint8_t P = (CONF_PWMINVERT ? 1 : 0);
 
 #if IS_ATMEGAx8
 	const uint8_t D = (USE_MAINLOOPDBG ? 1 : 0);
