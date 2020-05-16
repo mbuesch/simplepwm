@@ -11,17 +11,17 @@ Microcontroller
 
 Simplepwm supports the following microcontrollers. Not all features are supported on all microcontrollers. See the table for details.
 
-============================  ===========  =========  =========  =========  =========
-..                            ATMega-328P  ATTiny-85  ATTiny-45  ATTiny-25  ATTiny-13
-============================  ===========  =========  =========  =========  =========
-Number of analog pot. inputs       3           1          1          1          1
-Number of PWM outputs              3           1          1          1          1
-Battery power saving               x           x          x
-Battery voltage monitoring         x           x          x
-HSL color model                    x
-Remote control via UART            x
-Debugging via UART                 x
-============================  ===========  =========  =========  =========  =========
+============================  ===========  ==========  =========  =========  =========  =========
+..                            ATMega-328P  ATMega-88P  ATTiny-85  ATTiny-45  ATTiny-25  ATTiny-13
+============================  ===========  ==========  =========  =========  =========  =========
+Number of analog pot. inputs       3           3           1          1          1          1
+Number of PWM outputs              3           3           1          1          1          1
+Battery power saving               x           x           x          x
+Battery voltage monitoring         x           x           x          x
+HSL color model                    x           x
+Remote control via UART            x           x
+Debugging via UART                 x           x
+============================  ===========  ==========  =========  =========  =========  =========
 
 
 Hardware schematics
@@ -69,6 +69,7 @@ ATTiny 13        `DEV=t13`
 ATTiny 25        `DEV=t25`
 ATTiny 45        `DEV=t45`
 ATTiny 85        `DEV=t85`
+ATMega 88P       `DEV=m88p`
 ATMega 328P      `DEV=m328p`
 ===============  ===========
 
