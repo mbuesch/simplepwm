@@ -41,6 +41,13 @@ static struct {
 } system;
 
 
+/* Brown-out-detection disable supported? */
+#if USE_DEEP_SLEEP && defined(BOD_CONTROL_REG)
+# define HAVE_BOD_DISABLE	1
+#else
+# define HAVE_BOD_DISABLE	0
+#endif
+
 /* Main loop debug indicator. */
 #define USE_MAINLOOPDBG		(DEBUG && IS_ATMEGAx8)
 #if USE_MAINLOOPDBG
@@ -206,7 +213,7 @@ void system_handle_watchdog_interrupt(void)
 static void disable_bod_then_sleep(void)
 {
 	//TODO test if this does actually work
-#if USE_DEEP_SLEEP && defined(BOD_CONTROL_REG)
+#if HAVE_BOD_DISABLE
 	uint8_t tmp0, tmp1;
 
 	__asm__ __volatile__(
@@ -226,7 +233,7 @@ static void disable_bod_then_sleep(void)
 		  [BODS_BODSE_] "i"   ((1 << BODS) | (1 << BODSE)),
 		  [NOT_BODSE_]  "i"   ((uint8_t)~(1 << BODSE))
 	);
-#endif /* USE_DEEP_SLEEP */
+#endif /* HAVE_BOD_DISABLE */
 }
 
 /* Main program entry point. */
@@ -277,7 +284,7 @@ int _mainfunc main(void)
 		#pragma GCC diagnostic pop
 
 		sleep_enable();
-		if (go_deep) {
+		if (go_deep && HAVE_BOD_DISABLE) {
 			/* Disable BOD, then enter sleep mode. */
 			disable_bod_then_sleep();
 		} else {

@@ -1,12 +1,13 @@
 # Build configuration:
 
 # Target device. May be one of:
-#	t13	=> ATTiny13 with reduced feature set.
-#	t25	=> ATTiny25 with reduced feature set.
-#	t45	=> ATTiny45 with full feature set for one PWM.
-#	t85	=> ATTiny85 with full feature set for one PWM.
-#	m88p	=> ATMega88P with full feature set for three PWM (RGB).
-#	m328p	=> ATMega328P with full feature set for three PWM (RGB).
+#	t13	=> ATTiny13
+#	t25	=> ATTiny25
+#	t45	=> ATTiny45
+#	t85	=> ATTiny85
+#	m88	=> ATMega88
+#	m88p	=> ATMega88P
+#	m328p	=> ATMega328P
 DEV			:= t85
 
 ifeq ($(DEV),t13) # ATTiny 13
@@ -52,6 +53,17 @@ FEAT_BATTERY		:= 1
 FEAT_POWERSAVE		:= 1
 FEAT_REMOTE		:= 0
 FEAT_EEPROM		:= 0
+endif
+ifeq ($(DEV),m88) # ATMega 88
+CONF_PWMLIM		:= 100
+CONF_PWMINVERT		:= 0
+CONF_ADCINVERT		:= 0
+CONF_ADCHSL		:= 1
+FEAT_HIGHRES		:= 1
+FEAT_BATTERY		:= 0
+FEAT_POWERSAVE		:= 1
+FEAT_REMOTE		:= 1
+FEAT_EEPROM		:= 1
 endif
 ifeq ($(DEV),m88p) # ATMega 88P
 CONF_PWMLIM		:= 100
@@ -159,6 +171,14 @@ LFUSE			:= 0xD2
 HFUSE			:= 0xDD
 EFUSE			:= 0xFF
 endif
+ifeq ($(DEV),m88)
+# ATMega 88
+# 8 MHz, SUT 4.1 ms, BOD 2.7 V, WDT off, SPIEN
+F_CPU			:= 8000000UL
+LFUSE			:= 0xD2
+HFUSE			:= 0xDD
+EFUSE			:= 0xF9
+endif
 ifeq ($(DEV),m88p)
 # ATMega 88P
 # 8 MHz, SUT 4.1 ms, BOD 2.7 V, WDT off, SPIEN
@@ -215,6 +235,7 @@ ifeq ($(strip $(call deveq,t13)\
 	      $(call deveq,t25)\
 	      $(call deveq,t45)\
 	      $(call deveq,t85)\
+	      $(call deveq,m88)\
 	      $(call deveq,m88p)\
 	      $(call deveq,m328p)),)
 $(error "DEV=$(DEV) is not supported.")

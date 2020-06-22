@@ -4,7 +4,8 @@
 #include "util.h"
 
 
-#if (defined(__AVR_ATmega88P__) ||\
+#if (defined(__AVR_ATmega88__) ||\
+     defined(__AVR_ATmega88P__) ||\
      defined(__AVR_ATmega328P__))
 # define IS_ATMEGAx8		1
 #elif (defined(__AVR_ATtiny13__) ||\
