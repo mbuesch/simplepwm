@@ -50,6 +50,8 @@ enum remote_msg_id {
 	MSGID_CONTROL,
 	MSGID_GET_SETPOINTS,
 	MSGID_SETPOINTS,
+	MSGID_GET_PWMCORR,
+	MSGID_PWMCORR,
 	MSGID_GET_BATVOLT,
 	MSGID_BATVOLT,
 };
@@ -96,6 +98,16 @@ struct remote_msg {
 			uint8_t nr_sp;
 			le16_t sp[REMOTE_NR_SP];
 		} _packed setpoints;
+
+		struct {
+			uint8_t index;
+		} _packed get_pwmcorr;
+
+		struct {
+			uint8_t index;
+			le16_t mul;
+			le16_t div;
+		} _packed pwmcorr;
 
 		struct {
 		} _packed get_batvolt;
@@ -410,6 +422,46 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 						eedata->setpoints[i] = 0u;
 					eeprom_store_data();
 				}
+
+				txmsg->id = MSGID_ACK;
+			}
+		}
+
+		tx_start(txmsg);
+		break;
+	case MSGID_GET_PWMCORR:
+		txmsg = get_tx_buffer();
+		if (!txmsg)
+			goto error_txalloc;
+
+		txmsg->id = MSGID_NACK;
+
+		if (eedata) {
+			i = rxmsg->get_pwmcorr.index;
+			if (i < EEPROM_NR_SETPOINTS && i < NR_PWM) {
+				txmsg->pwmcorr.index = i;
+				txmsg->pwmcorr.mul = to_le16(eedata->pwmcorr_mul[i]);
+				txmsg->pwmcorr.div = to_le16(eedata->pwmcorr_div[i]);
+
+				txmsg->id = MSGID_PWMCORR;
+			}
+		}
+
+		tx_start(txmsg);
+		break;
+	case MSGID_PWMCORR:
+		txmsg = get_tx_buffer();
+		if (!txmsg)
+			goto error_txalloc;
+
+		txmsg->id = MSGID_NACK;
+
+		if (eedata) {
+			i = rxmsg->pwmcorr.index;
+			if (i < EEPROM_NR_SETPOINTS && i < NR_PWM) {
+				eedata->pwmcorr_mul[i] = from_le16(rxmsg->pwmcorr.mul);
+				eedata->pwmcorr_div[i] = from_le16(rxmsg->pwmcorr.div);
+				eeprom_store_data();
 
 				txmsg->id = MSGID_ACK;
 			}

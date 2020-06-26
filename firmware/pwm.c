@@ -18,12 +18,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "battery.h"
 #include "compat.h"
 #include "debug.h"
-#include "pwm.h"
-#include "util.h"
+#include "eeprom.h"
 #include "main.h"
-#include "battery.h"
+#include "pwm.h"
+#include "pwm_conf.h"
+#include "util.h"
 
 
 /* Physical PWM limits */
@@ -86,6 +88,14 @@
 	[_OUT2_PORT]	"I" (_SFR_IO_ADDR(PWM_TIM2_PORT)),	\
 	[_OUT2_BIT]	"M" (PWM_TIM2_PORTBIT)
 
+
+static struct {
+	uint8_t active_mode[NR_PWM];
+	uint16_t active_setpoint[NR_PWM];
+	uint8_t irq_count;
+} pwm;
+
+
 /* In high resolution mode TIM0_OVF_vect triggers with a frequency of:
  *   F_CPU / (256    *    256)
  *            ^prescaler  ^8-bit-overflow
@@ -94,16 +104,34 @@
  * Therefore the conversion from duty cycle setpoint to CPU cycles is:
  *   1 to 1
  */
-#define PWM_SP_TO_CPU_CYC_MUL	1u /* Setpoint to cycle multiplicator */
-#define PWM_SP_TO_CPU_CYC_DIV	1u /* Setpoint to cycle divisor */
+/* Setpoint to cycle multiplicator */
+static inline uint32_t pwm_sp_to_cpucyc_mul(uint8_t index)
+{
+	struct eeprom_data *eedata;
+	uint32_t mul;
 
+	mul = lim_u16(CONF_PWMLOWSPFACT_MUL);
 
-static struct {
-	uint8_t active_mode[NR_PWM];
-	uint16_t active_setpoint[NR_PWM];
-	uint8_t irq_count;
-} pwm;
+	eedata = eeprom_get_data();
+	if (eedata)
+		mul = lim_u16(mul + eedata->pwmcorr_mul[index]);
 
+	return mul;
+}
+/* Setpoint to cycle divisor */
+static inline uint32_t pwm_sp_to_cpucyc_div(uint8_t index)
+{
+	struct eeprom_data *eedata;
+	uint32_t div;
+
+	div = lim_u16(CONF_PWMLOWSPFACT_DIV);
+
+	eedata = eeprom_get_data();
+	if (eedata)
+		div = lim_u16(div + eedata->pwmcorr_div[index]);
+
+	return div;
+}
 
 /* Set a hardware pin to the specified state. */
 static inline void pwm_hw_pin_set(uint8_t index, bool set)

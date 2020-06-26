@@ -31,6 +31,8 @@
 struct eeprom_data {
 	uint8_t flags;
 	uint16_t setpoints[EEPROM_NR_SETPOINTS];
+	uint16_t pwmcorr_mul[EEPROM_NR_SETPOINTS];
+	uint16_t pwmcorr_div[EEPROM_NR_SETPOINTS];
 
 	/* Keep the serial number last.
 	 * With the update of the serial number the data set becomes valid. */

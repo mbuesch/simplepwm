@@ -32,7 +32,7 @@ ISR(TIMER%INDEX%_OVF_vect)
 	 * depends on the CPU frequency. */
 	memory_barrier();
 	tmp = pwm.active_setpoint[%INDEX%];
-	tmp = (tmp * PWM_SP_TO_CPU_CYC_MUL) / PWM_SP_TO_CPU_CYC_DIV;
+	tmp = (tmp * pwm_sp_to_cpucyc_mul(%INDEX%)) / pwm_sp_to_cpucyc_div(%INDEX%);
 	delay_count = lim_u16(tmp);
 
 	port_out_set(%INDEX%, false);

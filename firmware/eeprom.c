@@ -50,6 +50,8 @@ static struct eeprom_data EEMEM eep_addrspace[EE_RING_SIZE] = {
 	{
 		.flags		= 0u,
 		.setpoints	= { },
+		.pwmcorr_mul	= { },
+		.pwmcorr_div	= { },
 		.serial		= 0u,
 	},
 };

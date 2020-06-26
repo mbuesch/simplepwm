@@ -6,6 +6,7 @@ import sys
 import time
 import pathlib
 from collections import deque
+from fractions import Fraction
 
 
 def printDebugDevice(msg):
@@ -57,16 +58,18 @@ class SimplePWMMsg(object):
 	MSGID_CONTROL		= 6
 	MSGID_GET_SETPOINTS	= 7
 	MSGID_SETPOINTS		= 8
-	MSGID_GET_BATVOLT	= 9
-	MSGID_BATVOLT		= 10
+	MSGID_GET_PWMCORR	= 9
+	MSGID_PWMCORR		= 10
+	MSGID_GET_BATVOLT	= 11
+	MSGID_BATVOLT		= 12
 
 	@staticmethod
 	def _toLe16(value):
-		return bytearray( (value & 0xFF, (value >> 8) & 0xFF, ) )
+		return (value & 0xFFFF).to_bytes(2, "little")
 
 	@staticmethod
-	def _fromLe16(data):
-		return data[0] | (data[1] << 8)
+	def _fromLe16(data, signed=False):
+		return int.from_bytes(data, "little", signed=signed)
 
 	@classmethod
 	def parse(cls, data):
@@ -97,6 +100,10 @@ class SimplePWMMsg(object):
 				return SimplePWMMsg_SetSetpoints._parse(payload)
 			elif msgId == cls.MSGID_SETPOINTS:
 				return SimplePWMMsg_Setpoints._parse(payload)
+			elif msgId == cls.MSGID_GET_PWMCORR:
+				return SimplePWMMsg_GetPwmcorr._parse(payload)
+			elif msgId == cls.MSGID_PWMCORR:
+				return SimplePWMMsg_Pwmcorr._parse(payload)
 			elif msgId == cls.MSGID_GET_BATVOLT:
 				return SimplePWMMsg_GetBatvolt._parse(payload)
 			elif msgId == cls.MSGID_BATVOLT:
@@ -249,6 +256,59 @@ class SimplePWMMsg_Setpoints(SimplePWMMsg):
 
 	def __str__(self):
 		return f"SETPOINTS(flags=0x{self.flags:X}, setpoints={self.setpoints})"
+
+class SimplePWMMsg_GetPwmcorr(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_GET_PWMCORR
+
+	@classmethod
+	def _parse(cls, payload):
+		index = payload[0]
+		return cls(index)
+
+	def __init__(self, index):
+		super().__init__(self.MSGID)
+		self.index = index
+
+	def getData(self):
+		payload = bytearray( (self.index, ) )
+		return super().getData(payload)
+
+	def __str__(self):
+		return f"GET_PWMCORR(index={self.index})"
+
+class SimplePWMMsg_Pwmcorr(SimplePWMMsg):
+	MSGID = SimplePWMMsg.MSGID_PWMCORR
+
+	@classmethod
+	def _parse(cls, payload):
+		index = payload[0]
+		numerator = cls._fromLe16(payload[1 : 1 + 2])
+		denominator = cls._fromLe16(payload[3 : 3 + 2])
+		if numerator == denominator:
+			numerator = denominator = 1
+		try:
+			fraction = Fraction(numerator, denominator)
+		except (ValueError, ZeroDivisionError) as e:
+			printError("SimplePWMMsg_Pwmcorr: Received invalid fraction.")
+			return None
+		return cls(index, fraction)
+
+	def __init__(self, index, fraction):
+		super().__init__(self.MSGID)
+		self.index = index
+		self.fraction = fraction
+
+	def getData(self):
+		payload = bytearray( (self.index,) )
+		numerator, denominator = self.fraction.numerator, self.fraction.denominator
+		if numerator == denominator:
+			numerator = denominator = 0
+		payload += self._toLe16(numerator)
+		payload += self._toLe16(denominator)
+		return super().getData(payload)
+
+	def __str__(self):
+		return f"PWMCORR(index={self.index}, fraction={self.fraction})"
 
 class SimplePWMMsg_GetBatvolt(SimplePWMMsg):
 	MSGID = SimplePWMMsg.MSGID_GET_BATVOLT
@@ -495,6 +555,20 @@ class SimplePWM(object):
 		if not rxMsg:
 			raise SimplePWMError("Failed to set RGB setpoints.")
 
+	def getPwmCorr(self, index, timeout=None):
+		self.__tx_message(SimplePWMMsg_GetPwmcorr(index=index))
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Pwmcorr, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to get PWM correction.")
+		return rxMsg.fraction
+
+	def setPwmCorr(self, index, fraction, timeout=None):
+		txMsg = SimplePWMMsg_Pwmcorr(index=index, fraction=fraction)
+		self.__tx_message(txMsg)
+		rxMsg = self.__waitRxMsg(SimplePWMMsg_Ack, timeout)
+		if not rxMsg:
+			raise SimplePWMError("Failed to set PWM correction.")
+
 	def getBatVoltage(self, timeout=None):
 		self.__tx_message(SimplePWMMsg_GetBatvolt())
 		rxMsg = self.__waitRxMsg(SimplePWMMsg_Batvolt, timeout)
@@ -535,6 +609,29 @@ def parse_setpoints(string):
 		except ValueError as e:
 			raise SimplePWMError("Setpoint value parse error.")
 	return [ parseOne(v) for v in s ]
+
+def parse_pwmcorrindex(string):
+	try:
+		index = int(string)
+		if not 0 <= index <= 3:
+			raise SimplePWMError("PWM correction index is out of range.")
+		indices = range(3) if index == 0 else (index-1,)
+		return indices
+	except ValueError as e:
+		raise SimplePWMError("PWM correction parameter is invalid.")
+
+def parse_pwmcorr(string):
+	s = string.split(":")
+	if len(s) != 2:
+		raise SimplePWMError("PWM correction parameter is invalid.")
+	try:
+		indices = parse_pwmcorrindex(s[0])
+		fraction = Fraction(float(s[1])).limit_denominator(0xFFFF)
+		if not 0 <= fraction.numerator <= 0xFFFF:
+			raise SimplePWMError("PWM correction factor is out of range.")
+		return indices, fraction
+	except (ValueError, ZeroDivisionError) as e:
+		raise SimplePWMError("PWM correction parameter is invalid.")
 
 def main():
 	try:
@@ -578,6 +675,13 @@ def main():
 			       help="Get the current HSL setpoint values.")
 		p.add_argument("-S", "--hsl", type=parse_setpoints, default=None,
 			       help="Set the HSL setpoint values.")
+		p.add_argument("-c", "--get-pwm-corr", type=parse_pwmcorrindex,
+			       metavar="index",
+			       help="Get PWM lower range correction factor. "
+				    "Index is the PWM index (1-3) or 0 for all.")
+		p.add_argument("-C", "--pwm-corr", type=parse_pwmcorr, default=None,
+			       metavar="index:factor",
+			       help="Set PWM lower range correction factor.")
 		p.add_argument("-W", "--wait", type=float,
 			       help="Delay for a fractional number of seconds.")
 		p.add_argument("-L", "--loop", action="store_true",
@@ -643,6 +747,17 @@ def main():
 						      f"{hsl[0]*100/0xFFFF:.1f}%, "
 						      f"{hsl[1]*100/0xFFFF:.1f}%, "
 						      f"{hsl[2]*100/0xFFFF:.1f}%")
+				if name == "pwm-corr":
+					indices, fraction = value
+					for i in indices:
+						s.setPwmCorr(i, fraction)
+				if name == "get-pwm-corr":
+					indices = value
+					for i in indices:
+						fraction = s.getPwmCorr(i)
+						print(f"PWM {i+1} "
+						      f"lower range correction factor: "
+						      f"{float(fraction)}")
 				if name == "wait":
 					time.sleep(value)
 				if name == "loop":

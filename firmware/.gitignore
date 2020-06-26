@@ -5,3 +5,4 @@ obj/
 *.dasm
 *.map
 /pwm*_isr.c
+/pwm_conf.h

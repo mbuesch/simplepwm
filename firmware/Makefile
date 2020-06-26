@@ -13,6 +13,7 @@ DEV			:= t85
 ifeq ($(DEV),t13) # ATTiny 13
 CONF_PWMLIM		:= 100
 CONF_PWMINVERT		:= 0
+CONF_PWMLOWSPFACT	:= 1.0
 CONF_ADCINVERT		:= 0
 CONF_ADCHSL		:= 0
 FEAT_HIGHRES		:= 0
@@ -24,6 +25,7 @@ endif
 ifeq ($(DEV),t25) # ATTiny 25
 CONF_PWMLIM		:= 100
 CONF_PWMINVERT		:= 0
+CONF_PWMLOWSPFACT	:= 1.0
 CONF_ADCINVERT		:= 0
 CONF_ADCHSL		:= 0
 FEAT_HIGHRES		:= 0
@@ -35,6 +37,7 @@ endif
 ifeq ($(DEV),t45) # ATTiny 45
 CONF_PWMLIM		:= 100
 CONF_PWMINVERT		:= 0
+CONF_PWMLOWSPFACT	:= 1.0
 CONF_ADCINVERT		:= 0
 CONF_ADCHSL		:= 0
 FEAT_HIGHRES		:= 1
@@ -46,6 +49,7 @@ endif
 ifeq ($(DEV),t85) # ATTiny 85
 CONF_PWMLIM		:= 100
 CONF_PWMINVERT		:= 0
+CONF_PWMLOWSPFACT	:= 1.0
 CONF_ADCINVERT		:= 0
 CONF_ADCHSL		:= 0
 FEAT_HIGHRES		:= 1
@@ -57,6 +61,7 @@ endif
 ifeq ($(DEV),m88) # ATMega 88
 CONF_PWMLIM		:= 100
 CONF_PWMINVERT		:= 0
+CONF_PWMLOWSPFACT	:= 1.0
 CONF_ADCINVERT		:= 0
 CONF_ADCHSL		:= 1
 FEAT_HIGHRES		:= 1
@@ -68,6 +73,7 @@ endif
 ifeq ($(DEV),m88p) # ATMega 88P
 CONF_PWMLIM		:= 100
 CONF_PWMINVERT		:= 0
+CONF_PWMLOWSPFACT	:= 1.0
 CONF_ADCINVERT		:= 0
 CONF_ADCHSL		:= 1
 FEAT_HIGHRES		:= 1
@@ -79,6 +85,7 @@ endif
 ifeq ($(DEV),m328p) # ATMega 328P
 CONF_PWMLIM		:= 100
 CONF_PWMINVERT		:= 0
+CONF_PWMLOWSPFACT	:= 1.0
 CONF_ADCINVERT		:= 0
 CONF_ADCHSL		:= 1
 FEAT_HIGHRES		:= 1
@@ -97,6 +104,7 @@ endif
 $(info	DEV=$(DEV) \
 	CONF_PWMLIM=$(CONF_PWMLIM) \
 	CONF_PWMINVERT=$(CONF_PWMINVERT) \
+	CONF_PWMLOWSPFACT=$(CONF_PWMLOWSPFACT) \
 	CONF_ADCINVERT=$(CONF_ADCINVERT) \
 	CONF_ADCHSL=$(CONF_ADCHSL) \
 	FEAT_HIGHRES=$(FEAT_HIGHRES) \
@@ -214,6 +222,7 @@ BOOT_INSTRUMENT_FUNC	:=
 # Additional compiler flags
 CFLAGS			:= -DCONF_PWMLIM="$(CONF_PWMLIM)" \
 			   -DCONF_PWMINVERT="(!!($(CONF_PWMINVERT)))" \
+			   -DCONF_PWMLOWSPFACT="$(CONF_PWMLOWSPFACT)" \
 			   -DCONF_ADCINVERT="(!!($(CONF_ADCINVERT)))" \
 			   -DCONF_ADCHSL="(!!($(CONF_ADCHSL)))" \
 			   -DFEAT_HIGHRES="(!!($(FEAT_HIGHRES)))" \
@@ -224,7 +233,7 @@ CFLAGS			:= -DCONF_PWMLIM="$(CONF_PWMLIM)" \
 LDFLAGS			:=
 
 # Additional "clean" and "distclean" target files
-CLEAN_FILES		:= pwm0_isr.c pwm1_isr.c pwm2_isr.c
+CLEAN_FILES		:= pwm_conf.h pwm0_isr.c pwm1_isr.c pwm2_isr.c
 DISTCLEAN_FILES		:=
 
 
@@ -243,7 +252,10 @@ endif
 
 include avrmakelib.mk
 
-pwm.c: pwm0_isr.c pwm1_isr.c pwm2_isr.c
+pwm.c: pwm_conf.h pwm0_isr.c pwm1_isr.c pwm2_isr.c
+
+pwm_conf.h: pwm_conf.py
+	$(QUIET_PYTHON3) $< $(CFLAGS) > $@
 
 pwm0_isr.c: pwm_isr_template.c
 	$(QUIET_SED) -e 's/%INDEX%/0/g' -e 's/%HEADER%/THIS IS A GENERATED FILE/g' $< > $@
