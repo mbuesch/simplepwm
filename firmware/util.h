@@ -122,4 +122,14 @@ static inline uint16_t from_le16(le16_t x)
 	return (uint16_t)x;
 }
 
+/* Reboot into the bootloader. */
+static inline noreturn void enter_bootloader(void)
+{
+	/* Use the watchdog timer to reboot the system. */
+	irq_disable();
+	wdt_enable(WDTO_15MS);
+	while (1);
+	unreachable();
+}
+
 #endif /* UTIL_H_ */

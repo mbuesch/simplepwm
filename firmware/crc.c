@@ -25,6 +25,11 @@
 #include <util/crc16.h>
 
 
+uint8_t crc8_update(uint8_t crc, uint8_t data)
+{
+	return _crc8_ccitt_update(crc, data);
+}
+
 uint8_t crc8(const void *buf, uint8_t size)
 {
 	const uint8_t *data = buf;
@@ -32,7 +37,7 @@ uint8_t crc8(const void *buf, uint8_t size)
 	uint8_t i;
 
 	for (i = 0u; i < size; i++, data++)
-		crc = _crc8_ccitt_update(crc, *data);
+		crc = crc8_update(crc, *data);
 	crc ^= 0xFFu;
 
 	return crc;

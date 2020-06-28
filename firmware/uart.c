@@ -56,12 +56,6 @@
  *  Currently only channel select 00 is supported.
  */
 
-#define BAUDRATE	19200ul
-
-#define USE_2X		(((uint64_t)F_CPU % (8ull * BAUDRATE)) < \
-			 ((uint64_t)F_CPU % (16ull * BAUDRATE)))
-#define UBRRVAL		((uint64_t)F_CPU / ((USE_2X ? 8ull : 16ull) * BAUDRATE))
-
 #define UART_RXD_PCINT	16
 #define UART_TXD_PCINT	17
 

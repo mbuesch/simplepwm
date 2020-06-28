@@ -54,6 +54,8 @@ enum remote_msg_id {
 	MSGID_PWMCORR,
 	MSGID_GET_BATVOLT,
 	MSGID_BATVOLT,
+
+	MSGID_ENTERBOOT = 0xFF,
 };
 
 /* Remote control message. On-wire format. */
@@ -113,9 +115,14 @@ struct remote_msg {
 		} _packed get_batvolt;
 
 		struct {
-			uint16_t meas_mv;
-			uint16_t drop_mv;
+			le16_t meas_mv;
+			le16_t drop_mv;
 		} _packed batvolt;
+
+		struct {
+			le16_t bootmagic;
+#define MSG_BOOTMAGIC		0xB007
+		} _packed enterboot;
 
 		uint8_t padding[8];
 	} _packed;
@@ -476,12 +483,29 @@ static void remote_handle_rx_msg(const struct remote_msg *rxmsg)
 
 		txmsg->id = MSGID_BATVOLT;
 
-		battery_get_voltage(&txmsg->batvolt.meas_mv,
-				    &txmsg->batvolt.drop_mv);
+		{
+			uint16_t meas_mv, drop_mv;
+
+			battery_get_voltage(&meas_mv, &drop_mv);
+			txmsg->batvolt.meas_mv = to_le16(meas_mv);
+			txmsg->batvolt.drop_mv = to_le16(drop_mv);
+		}
 
 		tx_start(txmsg);
 		break;
 	case MSGID_BATVOLT:
+		break;
+	case MSGID_ENTERBOOT:
+		if (rxmsg->enterboot.bootmagic == to_le16(MSG_BOOTMAGIC))
+			enter_bootloader();
+
+		txmsg = get_tx_buffer();
+		if (!txmsg)
+			goto error_txalloc;
+
+		txmsg->id = MSGID_NACK;
+
+		tx_start(txmsg);
 		break;
 	default:
 		goto error_rxmsg;

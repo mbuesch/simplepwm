@@ -16,12 +16,13 @@ Simplepwm supports the following microcontrollers. Not all features are supporte
 ============================  ===========  ============  =========  =========  =========  =========
 Number of analog pot. inputs       3            3            1          1          1          1
 Number of PWM outputs              3            3            1          1          1          1
-Power saving                       x            x            x          x
+Power saving                       x                         x          x
 Battery voltage monitoring         x                         x          x
 HSL color model                    x            x
 Remote control via UART            x            x
 Settings in EEPROM                 x            x
 Debugging via UART                 x            x
+Firmware update via UART           x            x
 ============================  ===========  ============  =========  =========  =========  =========
 
 
@@ -90,6 +91,7 @@ FEAT_BATTERY     0-1     depends on DEV  Battery voltage monitoring
 FEAT_POWERSAVE   0-1     depends on DEV  Power saving / deep sleep
 FEAT_REMOTE      0-1     depends on DEV  Remote control via UART
 FEAT_EEPROM      0-1     depends on DEV  Store settings to EEPROM
+FEAT_BOOT        0-1     depends on DEV  Enable bootloader and firmware updating via UART.
 ===============  ======  ==============  ================================================================
 
 

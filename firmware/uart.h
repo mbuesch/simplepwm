@@ -13,6 +13,13 @@
 #endif
 
 
+#define BAUDRATE	19200ul
+
+#define USE_2X		(((uint64_t)F_CPU % (8ull * BAUDRATE)) < \
+			 ((uint64_t)F_CPU % (16ull * BAUDRATE)))
+#define UBRRVAL		((uint64_t)F_CPU / ((USE_2X ? 8ull : 16ull) * BAUDRATE))
+
+
 enum uart_chan {
 	UART_CHAN_8BIT_0,	/* 8 bit communication channel 0 */
 #if 0
