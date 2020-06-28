@@ -54,38 +54,6 @@ static const __flash struct {
 #define WATCHDOG_TRANS_DELAY	100 /* Watchdog cycles */
 
 
-/* Write to the WDT hardware register. */
-static alwaysinline void wdt_setup(uint8_t wdto, bool wde, bool wdie)
-{
-	const uint8_t first = (uint8_t)((1u << WDCE) | (1u << WDE));
-	const uint8_t secnd = (uint8_t)((wde ? (1u << WDE) : 0u) |
-					(wdie ? (1u << WDIE) : 0u) |
-					(wdto & 0x07u));
-
-	if (_SFR_IO_ADDR(WDTCR) > 0x3F) {
-		__asm__ __volatile__(
-			"wdr \n"
-			"sts %[WDTCR_], %[FIRST_] \n"
-			"sts %[WDTCR_], %[SECND_] \n"
-			: /* no out */
-			: [WDTCR_] "M" (_SFR_MEM_ADDR(WDTCR)),
-			  [FIRST_] "r" (first),
-			  [SECND_] "r" (secnd)
-		);
-	} else {
-		__asm__ __volatile__(
-			"wdr \n"
-			"out %[WDTCR_], %[FIRST_] \n"
-			"out %[WDTCR_], %[SECND_] \n"
-			: /* no out */
-			: [WDTCR_] "I" (_SFR_IO_ADDR(WDTCR)),
-			  [FIRST_] "r" (first),
-			  [SECND_] "r" (secnd)
-		);
-	}
-	watchdog.active_wdto = wdto;
-}
-
 /* Get the currently active watchdog interrupt trigger interval, in milliseconds. */
 uint16_t watchdog_interval_ms(void)
 {
@@ -119,8 +87,10 @@ static void watchdog_reconfigure(void)
 
 		/* Program the hardware, if required. */
 		wdto = watchdog_timeouts[watchdog.state].wdto;
-		if (wdto != watchdog.active_wdto)
+		if (wdto != watchdog.active_wdto) {
+			watchdog.active_wdto = wdto;
 			wdt_setup(wdto, true, USE_DEEP_SLEEP);
+		}
 	}
 }
 
@@ -166,12 +136,13 @@ ISR(WDT_vect)
 #endif /* USE_DEEP_SLEEP */
 
 /* Early watchdog timer initialization. */
-static void __attribute__((naked, used, section(".init3"))) wdt_early_init(void)
+static void section_init3 wdt_early_init(void)
 {
 	/* Clear WDRF (and all other reset info bits). */
 	MCUSR = 0;
 
 	/* Enable the watchdog. */
+	watchdog.active_wdto = watchdog_timeouts[WATCHDOG_INIT_STATE].wdto;
 	wdt_setup(watchdog_timeouts[WATCHDOG_INIT_STATE].wdto,
 		  true, USE_DEEP_SLEEP);
 

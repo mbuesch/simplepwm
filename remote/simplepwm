@@ -115,8 +115,9 @@ class SimplePWMBoot(object):
 		loopTime = 7.0
 		nextPrint = 1.0
 		if withUserHelp:
-			print(f"\n*** I need your help!\n"
-			      f"*** Please reset/restart/powercycle the target device now...",
+			print(f"\n*** I need your help now!\n"
+			      f"*** Please reset/restart/powercycle the target device once "
+			      f"and then wait for the timer to expire...",
 			      end="", flush=True)
 		while True:
 			self.__bootCommand(self.BOOTCMD_NOP, count=0x100)

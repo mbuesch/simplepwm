@@ -20,9 +20,10 @@
  */
 
 #include "compat.h"
-#include "util.h"
-#include "uart.h" /* for BAUDRATE */
 #include "crc.h"
+#include "uart.h" /* for BAUDRATE */
+#include "util.h"
+#include "watchdog.h" /* for wdt_setup */
 
 #include <avr/boot.h>
 
@@ -30,8 +31,9 @@
 #define BOOT_IRQ_SUPPORT		0
 
 
-#define TIMEOUT_SMALL			((F_CPU / 1024u) / 10u) /* 1/10th sec. */
+#define TIMEOUT_SMALL			((F_CPU / 1024u) / 11u) /* 1/11th sec. */
 #define TIMEOUT_BIG			((F_CPU / 1024u) * 1u)  /* 1 sec. */
+#define TIMEOUT_SHIFT			8
 
 #define BOOTCMD_EXIT			0x00u
 #define BOOTCMD_GETID			0x01u
@@ -49,8 +51,8 @@
 #define WRITEPAGE_SIZE			SPM_PAGESIZE
 
 
-static uint16_t bootloader_timeout_thres;
-static uint8_t saved_mcusr __attribute__((section(".noinit")));
+static uint8_t bootloader_timeout_thres section_noinit;
+static uint8_t saved_mcusr section_noinit;
 
 
 static inline void bootloader_timeout_reset(void)
@@ -72,17 +74,21 @@ static void bootloader_timeout_init(bool small_timeout)
 {
 	bootloader_timeout_exit();
 	if (small_timeout)
-		bootloader_timeout_thres = TIMEOUT_SMALL;
+		bootloader_timeout_thres = TIMEOUT_SMALL >> TIMEOUT_SHIFT;
 	else
-		bootloader_timeout_thres = TIMEOUT_BIG;
+		bootloader_timeout_thres = TIMEOUT_BIG >> TIMEOUT_SHIFT;
 	memory_barrier();
 	TCCR1B = (1u << CS12) | (0u << CS11) | (1u << CS10); /* 1024 */
 }
 
 static bool bootloader_timeout(void)
 {
-	return ((TCNT1 > bootloader_timeout_thres) ||
-	        (TIFR1 & (1 << TOV1)));
+	uint8_t tcnt;
+
+	if (TIFR1 & (1u << TOV1))
+		return true;
+	tcnt = (uint8_t)(TCNT1 >> TIMEOUT_SHIFT);
+	return tcnt > bootloader_timeout_thres;
 }
 
 #define write_ivsel(ivsel_insn)					\
@@ -199,13 +205,13 @@ static bool write_eeprom(const uint8_t *buffer,
 	return ok;
 }
 
-static uint8_t receive_byte(void)
+static noinline uint8_t receive_byte(void)
 {
 	while ((UCSR0A & (1u << RXC0)) == 0u);
 	return UDR0;
 }
 
-static void send_byte(uint8_t byte)
+static noinline void send_byte(uint8_t byte)
 {
 	while ((UCSR0A & (1u << UDRE0)) == 0u);
 	UDR0 = byte;
@@ -223,7 +229,8 @@ static void handle_writepage(void)
 	uint8_t crc, expected_crc;
 	uint16_t page_address, i;
 	bool ok;
-	static uint8_t page_buffer[WRITEPAGE_SIZE];
+	bool erase_only;
+	static uint8_t page_buffer[WRITEPAGE_SIZE] section_noinit;
 
 	ok = false;
 	crc = 0u;
@@ -236,9 +243,10 @@ static void handle_writepage(void)
 	crc = crc8_update(crc, addr_lo);
 	addr_hi = receive_byte();
 	crc = crc8_update(crc, addr_hi);
-	page_address = (uint16_t)addr_lo | ((uint16_t)addr_hi << 8);
 
-	if (!(flags & BOOT_WRITEPAGE_FLG_ERASEONLY)) {
+	erase_only = !!(flags & BOOT_WRITEPAGE_FLG_ERASEONLY);
+
+	if (!erase_only) {
 		for (i = 0; i < WRITEPAGE_SIZE; i++) {
 			data = receive_byte();
 			page_buffer[i] = data;
@@ -252,17 +260,20 @@ static void handle_writepage(void)
 	if ((magic == BOOT_WRITEPAGE_MAGIC) &&
 	    ((flags & BOOT_WRITEPAGE_FLG_UNKNOWN) == 0u) &&
 	    (expected_crc == crc)) {
+
+		page_address = ((uint16_t)addr_hi << 8) | addr_lo;
+
 		if (flags & BOOT_WRITEPAGE_FLG_EEPROM) {
 			if (page_address < (E2END + 1u)) {
 				ok = write_eeprom(page_buffer,
 						  page_address,
-						  !!(flags & BOOT_WRITEPAGE_FLG_ERASEONLY));
+						  erase_only);
 			}
 		} else {
 			if (page_address < BOOT_OFFSET) {
 				ok = write_page(page_buffer,
 						page_address,
-						!!(flags & BOOT_WRITEPAGE_FLG_ERASEONLY));
+						erase_only);
 			}
 		}
 	}
@@ -313,12 +324,12 @@ static void init_commands(void)
 		 (0 << UCSZ02);
 }
 
-static void __attribute__((naked, used, section(".init3"))) early_init(void)
+static void section_init3 early_init(void)
 {
 	irq_disable();
 	saved_mcusr = MCUSR;
 	MCUSR = 0;
-	wdt_enable(WDTO_500MS);
+	wdt_setup(WDTO_500MS, true, false);
 }
 
 int _mainfunc main(void)

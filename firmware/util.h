@@ -69,6 +69,11 @@
 # define unreachable()		while (1)
 #endif
 
+/* Code section attributes */
+#define section_init3		__attribute__((naked, used, section(".init3")))
+
+/* Data section attributes */
+#define section_noinit		__attribute__((section(".noinit")))
 
 /* Non-standard integer types. */
 typedef __int24		int24_t;
