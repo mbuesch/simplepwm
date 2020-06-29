@@ -110,36 +110,42 @@ class SimplePWMBoot(object):
 					     f"{str(e)}")
 
 	def __syncConnection(self, withUserHelp=False):
-		self.__serial.timeout = 0.1
-		begin = time.monotonic()
-		loopTime = 7.0
-		nextPrint = 1.0
-		if withUserHelp:
-			print(f"\n*** I need your help now!\n"
-			      f"*** Please reset/restart/powercycle the target device once "
-			      f"and then wait for the timer to expire...",
-			      end="", flush=True)
-		while True:
-			self.__bootCommand(self.BOOTCMD_NOP, count=0x100)
-			now = time.monotonic()
-			if not withUserHelp or now >= begin + loopTime:
-				break
-			if now - begin >= nextPrint:
-				print(f" {round(loopTime - nextPrint)}", end="", flush=True)
-				nextPrint += 1.0
-		if withUserHelp:
-			print(" 0")
-		while self.__serial.read():
-			pass
-		self.__serial.timeout = 5.0
+		try:
+			self.__serial.timeout = 0.1
+			begin = time.monotonic()
+			loopTime = 7.0
+			nextPrint = 1.0
+			if withUserHelp:
+				print(f"\n*** I need your help now!\n"
+				      f"*** Please reset/restart/powercycle the target device once "
+				      f"and then wait for the timer to expire...",
+				      end="", flush=True)
+			while True:
+				self.__bootCommand(self.BOOTCMD_NOP, count=0x100)
+				now = time.monotonic()
+				if not withUserHelp or now >= begin + loopTime:
+					break
+				if now - begin >= nextPrint:
+					print(f" {round(loopTime - nextPrint)}", end="", flush=True)
+					nextPrint += 1.0
+			if withUserHelp:
+				print(" 0")
+			while self.__serial.read():
+				pass
+			self.__serial.timeout = 5.0
+		except serial.SerialException as e:
+			raise SimplePWMError(f"Serial bus exception:\n{e}")
 
 	def __bootCommand(self, command, count=1, replyBytes=0):
-		self.__serial.write(bytearray( (command, ) * count ))
-		if replyBytes > 0:
-			data = self.__serial.read(replyBytes)
-			if not data:
-				raise SimplePWMError(f"Command timeout.")
-			return data
+		try:
+			self.__serial.write(bytearray( (command, ) * count ))
+			if replyBytes > 0:
+				data = self.__serial.read(replyBytes)
+				if not data:
+					raise SimplePWMError(f"Command timeout.")
+				return data
+		except serial.SerialException as e:
+			raise SimplePWMError(f"Serial bus exception:\n{e}")
 
 	def __readChipProperties(self):
 		chipId = self.__bootCommand(self.BOOTCMD_GETID, replyBytes=1)[0]
@@ -194,8 +200,11 @@ class SimplePWMBoot(object):
 			cmdData += bytearray( (crc8(cmdData), ) )
 
 			self.__bootCommand(self.BOOTCMD_WRITEPAGE)
-			self.__serial.write(cmdData)
-			result = self.__serial.read(1)
+			try:
+				self.__serial.write(cmdData)
+				result = self.__serial.read(1)
+			except serial.SerialException as e:
+				raise SimplePWMError(f"Serial bus exception:\n{e}")
 			if not result:
 				raise SimplePWMError(f"BOOTCMD_WRITEPAGE timeout at 0x{addr:04X}.")
 			if result[0] != self.BOOTRESULT_OK:
@@ -554,12 +563,15 @@ class SimplePWM(object):
 		     timeout=1.0,
 		     dumpDebugStream=False,
 		     recoveryMode=False):
-		self.__serial = serial.Serial(port=port,
-					      baudrate=19200,
-					      bytesize=8,
-					      parity=serial.PARITY_NONE,
-					      stopbits=2,
-					      timeout=timeout)
+		try:
+			self.__serial = serial.Serial(port=port,
+						      baudrate=19200,
+						      bytesize=8,
+						      parity=serial.PARITY_NONE,
+						      stopbits=2,
+						      timeout=timeout)
+		except serial.SerialException as e:
+			raise SimplePWMError(f"Serial bus exception:\n{e}")
 		self.__recoveryMode = recoveryMode
 		self.__timeout = timeout
 		self.__dumpDebugStream = dumpDebugStream
@@ -605,7 +617,10 @@ class SimplePWM(object):
 			      self.FLG_8BIT |
 			      self.FLG_8BIT_UPPER)
 			sendBytes = bytes( (lo, hi) )
-			self.__serial.write(sendBytes)
+			try:
+				self.__serial.write(sendBytes)
+			except serial.SerialException as e:
+				raise SimplePWMError(f"Serial bus exception:\n{e}")
 
 	def __rx_7bit(self, dataByte):
 		self.__debugBuf += dataByte
@@ -642,8 +657,11 @@ class SimplePWM(object):
 	def __readNext(self, timeout):
 		if timeout < 0:
 			timeout = self.__timeout
-		self.__serial.timeout = timeout
-		dataByte = self.__serial.read(1)
+		try:
+			self.__serial.timeout = timeout
+			dataByte = self.__serial.read(1)
+		except serial.SerialException as e:
+			raise SimplePWMError(f"Serial bus exception:\n{e}")
 		if dataByte:
 			if dataByte[0] & self.FLG_8BIT:
 				self.__rx_8bit(dataByte)
