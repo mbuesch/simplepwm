@@ -1,8 +1,12 @@
 import sys
+import os
+import contextlib
 from subprocess import run, PIPE
 from unittest import TestCase
 from colorsys import hls_to_rgb
 
+with contextlib.suppress(OSError):
+	os.unlink("test_color.bin")
 run(["cc", "-O2", "-o", "test_color.bin", "test_color.c"])
 
 class Color_Test(TestCase):

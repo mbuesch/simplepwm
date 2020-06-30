@@ -5,6 +5,8 @@
 #define cli()
 #define sei()
 #define COMPAT_H_
+#define wdt_enable(x)
+#define WDTO_15MS
 uint8_t SREG;
 
 #include "../color.c"
