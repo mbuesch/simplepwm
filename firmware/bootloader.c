@@ -53,6 +53,7 @@
 
 static uint8_t bootloader_timeout_thres section_noinit;
 static uint8_t saved_mcusr section_noinit;
+static uint8_t rx_errors section_noinit;
 
 
 static inline void bootloader_timeout_reset(void)
@@ -205,16 +206,42 @@ static bool write_eeprom(const uint8_t *buffer,
 	return ok;
 }
 
+static inline uint8_t get_rx_errors(void)
+{
+	return (UCSR0A & ((1u << FE0) | (1u << DOR0) | (1u << UPE0)));
+}
+
+static inline bool have_rx_byte(void)
+{
+	return ((UCSR0A & (1u << RXC0)) != 0u);
+}
+
+static inline uint8_t get_rx_byte(void)
+{
+	return UDR0;
+}
+
+static inline bool tx_ready(void)
+{
+	return ((UCSR0A & (1u << UDRE0)) != 0u);
+}
+
+static inline void set_tx_byte(uint8_t byte)
+{
+	UDR0 = byte;
+}
+
 static noinline uint8_t receive_byte(void)
 {
-	while ((UCSR0A & (1u << RXC0)) == 0u);
-	return UDR0;
+	while (!have_rx_byte());
+	rx_errors |= get_rx_errors();
+	return get_rx_byte();
 }
 
 static noinline void send_byte(uint8_t byte)
 {
-	while ((UCSR0A & (1u << UDRE0)) == 0u);
-	UDR0 = byte;
+	while (!tx_ready());
+	set_tx_byte(byte);
 }
 
 /* RX byte stream:
@@ -257,7 +284,8 @@ static void handle_writepage(void)
 	crc ^= 0xFFu;
 	expected_crc = receive_byte();
 
-	if ((magic == BOOT_WRITEPAGE_MAGIC) &&
+	if ((rx_errors == 0u) &&
+	    (magic == BOOT_WRITEPAGE_MAGIC) &&
 	    ((flags & BOOT_WRITEPAGE_FLG_UNKNOWN) == 0u) &&
 	    (expected_crc == crc)) {
 
@@ -290,24 +318,28 @@ static void receive_commands(void)
 {
 	uint8_t command;
 
-	if ((UCSR0A & (1u << RXC0)) != 0u) {
-		command = UDR0;
-		switch (command) {
-		default:
-		case BOOTCMD_EXIT:
-			exit_bootloader();
-			break;
-		case BOOTCMD_GETID:
-			handle_getid();
-			break;
-		case BOOTCMD_WRITEPAGE:
-			handle_writepage();
-			break;
-		case BOOTCMD_NOP:
-			break;
-		}
+	if (have_rx_byte()) {
+		rx_errors = get_rx_errors();
+		command = get_rx_byte();
 
-		bootloader_timeout_reset();
+		if (rx_errors == 0u) {
+			switch (command) {
+			default:
+			case BOOTCMD_EXIT:
+				exit_bootloader();
+				break;
+			case BOOTCMD_GETID:
+				handle_getid();
+				break;
+			case BOOTCMD_WRITEPAGE:
+				handle_writepage();
+				break;
+			case BOOTCMD_NOP:
+				break;
+			}
+
+			bootloader_timeout_reset();
+		}
 	}
 }
 
@@ -316,7 +348,7 @@ static void init_commands(void)
 	UBRR0 = UBRRVAL;
 	UCSR0A = (1 << TXC0) | (!!(USE_2X) << U2X0) | (0 << MPCM0);
 	UCSR0C = (0 << UMSEL01) | (0 << UMSEL00) |
-		 (0 << UPM01) | (0 << UPM00) |
+		 (1 << UPM01) | (1 << UPM00) |
 		 (1 << USBS0) |
 		 (1 << UCSZ01) | (1 << UCSZ00);
 	UCSR0B = (0 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |

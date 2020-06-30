@@ -567,7 +567,7 @@ class SimplePWM(object):
 			self.__serial = serial.Serial(port=port,
 						      baudrate=19200,
 						      bytesize=8,
-						      parity=serial.PARITY_NONE,
+						      parity=serial.PARITY_ODD,
 						      stopbits=2,
 						      timeout=timeout)
 		except serial.SerialException as e:

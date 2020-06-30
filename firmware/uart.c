@@ -240,7 +240,7 @@ static void uart_enable(bool enable)
 				UBRR0 = UBRRVAL;
 				UCSR0A = (1 << TXC0) | (!!(USE_2X) << U2X0) | (0 << MPCM0);
 				UCSR0C = (0 << UMSEL01) | (0 << UMSEL00) |
-					 (0 << UPM01) | (0 << UPM00) |
+					 (1 << UPM01) | (1 << UPM00) |
 					 (1 << USBS0) |
 					 (1 << UCSZ01) | (1 << UCSZ00);
 				UCSR0B = (1 << RXCIE0) | (0 << TXCIE0) | (0 << UDRIE0) |
