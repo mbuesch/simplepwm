@@ -137,4 +137,15 @@ static inline noreturn void enter_bootloader(void)
 	unreachable();
 }
 
+/* Port toggle for debugging purposes. */
+#define debug_toggle(portname, portbit, delay_us, count)			\
+	do {									\
+		uint8_t _dt_i;							\
+		DDR##portname |= 1u << (portbit);				\
+		for (_dt_i = 0; _dt_i < (uint8_t)(count); _dt_i++) {		\
+			PIN##portname |= 1u << (portbit);			\
+			_delay_us(delay_us);					\
+		}								\
+	} while (0)
+
 #endif /* UTIL_H_ */
