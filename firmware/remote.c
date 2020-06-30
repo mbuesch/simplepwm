@@ -536,12 +536,15 @@ static void remote_tx_ready(void)
 
 /* New byte received.
  * Called with interrupts disabled. */
-static void remote_rx(uint8_t data)
+static void remote_rx(uint8_t data, bool error)
 {
 	const struct remote_msg *msg;
 
 	if (!USE_REMOTE)
 		return;
+
+	if (error)
+		remote.rx.synchronized = false;
 
 	remote.time_since_xfer_ms = 0u;
 

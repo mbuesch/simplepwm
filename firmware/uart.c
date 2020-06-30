@@ -159,6 +159,7 @@ void uart_tx_enable(bool enable, enum uart_chan chan)
 #if USE_UART
 ISR(USART_UDRE_vect)
 {
+	uart_txready_cb_t cb;
 	uint8_t data;
 	uint8_t i;
 
@@ -172,8 +173,9 @@ ISR(USART_UDRE_vect)
 
 	for (i = 0u; i < UART_NR_CHAN; i++) {
 		if (uart_tx_is_ready(i)) {
-			if (uart.tx.ready_callback[i])
-				uart.tx.ready_callback[i]();
+			cb = uart.tx.ready_callback[i];
+			if (cb)
+				cb();
 		} else
 			break;
 	}
@@ -185,8 +187,10 @@ ISR(USART_UDRE_vect)
 #if USE_UART
 ISR(USART_RX_vect)
 {
+	uart_rx_cb_t cb;
 	uint8_t status;
 	uint8_t data;
+	uint8_t i;
 
 	status = UCSR0A;
 	data = UDR0;
@@ -199,8 +203,9 @@ ISR(USART_RX_vect)
 				if (data & FLG_8BIT_UPPER) {
 					data = (uint8_t)(data << 4);
 					data = (uint8_t)(data | (uart.rx.buf & MSK_4BIT));
-					if (uart.rx.callback[UART_CHAN_8BIT_0])
-						uart.rx.callback[UART_CHAN_8BIT_0](data);
+					cb = uart.rx.callback[UART_CHAN_8BIT_0];
+					if (cb)
+						cb(data, false);
 				}
 			} else {
 				if (!(data & FLG_8BIT_UPPER)) {
@@ -210,11 +215,18 @@ ISR(USART_RX_vect)
 			}
 		} else {
 			uart.rx.upper = false;
-			if (uart.rx.callback[UART_CHAN_7BIT])
-				uart.rx.callback[UART_CHAN_7BIT](data);
+			cb = uart.rx.callback[UART_CHAN_7BIT];
+			if (cb)
+				cb(data, false);
 		}
-	} else
+	} else { /* error */
 		uart.rx.upper = false;
+		for (i = 0u; i < UART_NR_CHAN; i++) {
+			cb = uart.rx.callback[i];
+			if (cb)
+				cb(0u, true);
+		}
+	}
 }
 #endif /* USE_UART */
 

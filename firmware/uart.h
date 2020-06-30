@@ -32,7 +32,7 @@ enum uart_chan {
 };
 
 typedef void (*uart_txready_cb_t)(void);
-typedef void (*uart_rx_cb_t)(uint8_t data);
+typedef void (*uart_rx_cb_t)(uint8_t data, bool error);
 
 bool uart_tx_is_ready(enum uart_chan chan);
 void uart_tx_byte(uint8_t data, enum uart_chan chan);
