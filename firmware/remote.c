@@ -157,7 +157,7 @@ static void remote_update_standby_suppress(void)
 	uint8_t i;
 	bool all_zero;
 
-	if (!USE_REMOTE)
+	if (!USE_REMOTE || !USE_DEEP_SLEEP)
 		return;
 
 	standby_suppress = false;

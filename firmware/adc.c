@@ -30,6 +30,7 @@
 #include "outputsp.h"
 #include "standby.h"
 #include "remote.h"
+#include "watchdog.h"
 
 
 /* ADC configuration. */
@@ -380,9 +381,9 @@ ISR(ADC_vect)
 		irq_disable();
 	}
 
-	/* If deep sleep support is disabled, then the watchdog IRQ is also disabled.
-	 * Poke the watchdog here. */
-	if (!USE_DEEP_SLEEP)
+	/* If there is no watchdog IRQ,
+	 * then the ADC IRQ is responsible for poking the watchdog. */
+	if (!USE_WATCHDOG_IRQ)
 		wdt_reset();
 
 	/* Re-enable the ADC interrupt. */

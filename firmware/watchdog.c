@@ -89,7 +89,7 @@ static void watchdog_reconfigure(void)
 		wdto = watchdog_timeouts[watchdog.state].wdto;
 		if (wdto != watchdog.active_wdto) {
 			watchdog.active_wdto = wdto;
-			wdt_setup(wdto, true, USE_DEEP_SLEEP);
+			wdt_setup(wdto, true, USE_WATCHDOG_IRQ);
 		}
 	}
 }
@@ -105,35 +105,37 @@ void watchdog_set_standby(bool standby)
 }
 
 /* Watchdog timer interrupt service routine. */
-#if USE_DEEP_SLEEP
+#if USE_WATCHDOG_IRQ
 ISR(WDT_vect)
 {
 	memory_barrier();
 
 //	dprintf("WDT_vect\r\n");
 
-	/* Notify the system. */
-	system_handle_watchdog_interrupt();
+	if (USE_DEEP_SLEEP) {
+		/* Notify the system. */
+		system_handle_watchdog_interrupt();
 
-	/* Go to the next watchdog interval state,
-	 * if the system is in standby. */
-	if (watchdog.standby) {
-		watchdog.transition_delay = sub_sat_u8(watchdog.transition_delay, 1u);
-		if (watchdog.transition_delay == 0u) {
-			watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
-			if (watchdog.state < WATCHDOG_LAST_NORMAL_STATE)
-				watchdog.state++;
+		/* Go to the next watchdog interval state,
+		 * if the system is in standby. */
+		if (watchdog.standby) {
+			watchdog.transition_delay = sub_sat_u8(watchdog.transition_delay, 1u);
+			if (watchdog.transition_delay == 0u) {
+				watchdog.transition_delay = WATCHDOG_TRANS_DELAY;
+				if (watchdog.state < WATCHDOG_LAST_NORMAL_STATE)
+					watchdog.state++;
+			}
 		}
-	}
 
-	/* Configure the new interval, if required. */
-	watchdog_reconfigure();
+		/* Configure the new interval, if required. */
+		watchdog_reconfigure();
+	}
 
 	memory_barrier();
 	WDTCR |= (1 << WDIE);
 	memory_barrier();
 }
-#endif /* USE_DEEP_SLEEP */
+#endif /* USE_WATCHDOG_IRQ */
 
 /* Early watchdog timer initialization. */
 static void section_init3 wdt_early_init(void)
@@ -144,7 +146,7 @@ static void section_init3 wdt_early_init(void)
 	/* Enable the watchdog. */
 	watchdog.active_wdto = watchdog_timeouts[WATCHDOG_INIT_STATE].wdto;
 	wdt_setup(watchdog_timeouts[WATCHDOG_INIT_STATE].wdto,
-		  true, USE_DEEP_SLEEP);
+		  true, USE_WATCHDOG_IRQ);
 
 	/* Enable watchdog interrupt for wake up from deep sleep. */
 	if (USE_DEEP_SLEEP) {

@@ -1,7 +1,12 @@
 #ifndef WATCHDOG_H_
 #define WATCHDOG_H_
 
+#include "main.h"
+#include "remote.h"
 #include "util.h"
+
+
+#define USE_WATCHDOG_IRQ	(USE_DEEP_SLEEP || USE_REMOTE)
 
 
 /* Write to the WDT hardware register. */
