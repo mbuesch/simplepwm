@@ -70,7 +70,7 @@ static struct {
 
 static void eeprom_update_standby_suppress(void)
 {
-	if (USE_EEPROM) {
+	if (USE_EEPROM && USE_DEEP_SLEEP) {
 		set_standby_suppress(STANDBY_SRC_EEPROM,
 				     eep.store_running || eep.store_request);
 	}
@@ -216,7 +216,8 @@ void eeprom_store_data(void)
  * Called with interrupts disabled. */
 void eeprom_handle_deep_sleep_wakeup(void)
 {
-	eeprom_update_standby_suppress();
+	if (USE_EEPROM && USE_DEEP_SLEEP)
+		eeprom_update_standby_suppress();
 }
 
 /* Watchdog timer interrupt service routine

@@ -90,7 +90,7 @@ static struct {
 
 static void uart_update_standby_suppress(void)
 {
-	if (USE_UART) {
+	if (USE_UART && USE_DEEP_SLEEP) {
 		set_standby_suppress(STANDBY_SRC_UART,
 				     uart.standby_delay_ms > 0u);
 	}
@@ -257,7 +257,7 @@ static void uart_enable(bool enable)
 
 static void uart_rxd_pcint_handler(void)
 {
-	if (USE_UART) {
+	if (USE_UART && USE_DEEP_SLEEP) {
 		/* We woke up from deep sleep (power-down) by UART RX. */
 		uart.standby_delay_ms = UART_STANDBY_DELAY_MS;
 		system_handle_deep_sleep_wakeup();
@@ -266,7 +266,7 @@ static void uart_rxd_pcint_handler(void)
 
 void uart_enter_deep_sleep(void)
 {
-	if (USE_UART) {
+	if (USE_UART && USE_DEEP_SLEEP) {
 		uart_enable(false);
 		pcint_enable(UART_RXD_PCINT, true);
 	}
@@ -276,7 +276,7 @@ void uart_enter_deep_sleep(void)
  * Called with interrupts disabled. */
 void uart_handle_deep_sleep_wakeup(void)
 {
-	if (USE_UART) {
+	if (USE_UART && USE_DEEP_SLEEP) {
 		pcint_enable(UART_RXD_PCINT, false);
 		uart_enable(true);
 		uart_update_standby_suppress();
@@ -287,7 +287,7 @@ void uart_handle_deep_sleep_wakeup(void)
  * Called with interrupts disabled. */
 void uart_handle_watchdog_interrupt(void)
 {
-	if (USE_UART) {
+	if (USE_UART && USE_DEEP_SLEEP) {
 		uart.standby_delay_ms = sub_sat_u16(uart.standby_delay_ms,
 						    watchdog_interval_ms());
 		uart_update_standby_suppress();
@@ -303,7 +303,10 @@ void uart_init(void)
 			uart.tx.ready_callback[i] = NULL;
 			uart.rx.callback[i] = NULL;
 		}
-		pcint_register_callback(UART_RXD_PCINT, uart_rxd_pcint_handler);
+		if (USE_DEEP_SLEEP) {
+			pcint_register_callback(UART_RXD_PCINT,
+						uart_rxd_pcint_handler);
+		}
 		uart_update_standby_suppress();
 		memory_barrier();
 		uart_enable(true);

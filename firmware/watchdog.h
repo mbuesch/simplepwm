@@ -1,12 +1,17 @@
 #ifndef WATCHDOG_H_
 #define WATCHDOG_H_
 
+#include "battery.h"
+#include "eeprom.h"
 #include "main.h"
 #include "remote.h"
 #include "util.h"
 
 
-#define USE_WATCHDOG_IRQ	(USE_DEEP_SLEEP || USE_REMOTE)
+#define USE_WATCHDOG_IRQ	(USE_DEEP_SLEEP || \
+				 USE_BAT_MONITOR || \
+				 USE_EEPROM || \
+				 USE_REMOTE)
 
 
 /* Write to the WDT hardware register. */

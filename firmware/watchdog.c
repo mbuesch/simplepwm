@@ -57,9 +57,9 @@ static const __flash struct {
 /* Get the currently active watchdog interrupt trigger interval, in milliseconds. */
 uint16_t watchdog_interval_ms(void)
 {
-	if (USE_DEEP_SLEEP)
+	if (USE_WATCHDOG_IRQ)
 		return watchdog_timeouts[watchdog.state].ms;
-	return 0;
+	return watchdog_timeouts[WATCHDOG_INIT_STATE].ms;
 }
 
 /* Reconfigure the watchdog interval.
@@ -112,10 +112,10 @@ ISR(WDT_vect)
 
 //	dprintf("WDT_vect\r\n");
 
-	if (USE_DEEP_SLEEP) {
-		/* Notify the system. */
-		system_handle_watchdog_interrupt();
+	/* Notify the system. */
+	system_handle_watchdog_interrupt();
 
+	if (USE_DEEP_SLEEP) {
 		/* Go to the next watchdog interval state,
 		 * if the system is in standby. */
 		if (watchdog.standby) {

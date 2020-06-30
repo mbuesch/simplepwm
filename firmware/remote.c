@@ -566,7 +566,7 @@ static void remote_rx(uint8_t data)
  * Called with interrupts disabled. */
 void remote_handle_deep_sleep_wakeup(void)
 {
-	if (!USE_REMOTE)
+	if (!USE_REMOTE || !USE_DEEP_SLEEP)
 		return;
 
 	remote_update_standby_suppress();
@@ -577,7 +577,7 @@ void remote_handle_deep_sleep_wakeup(void)
  * Called with interrupts disabled. */
 void remote_handle_watchdog_interrupt(void)
 {
-	if (!USE_REMOTE)
+	if (!USE_REMOTE || !USE_DEEP_SLEEP)
 		return;
 
 	remote.time_since_xfer_ms = add_sat_u16(remote.time_since_xfer_ms,
