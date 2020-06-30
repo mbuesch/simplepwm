@@ -91,7 +91,7 @@ static uint16_t h2rgb(float x, float y, float h)
 		return 0u;
 	if (ret > f1_1)
 		return UINT16_MAX;
-	return (uint16_t)(ret * (float)UINT16_MAX);
+	return (uint16_t)multiply(ret, (float)UINT16_MAX);
 }
 #else /* USE_FLOAT */
 static uint16_t h2rgb(int32_t x, int32_t y, int32_t h)
