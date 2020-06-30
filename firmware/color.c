@@ -47,8 +47,13 @@
 #endif
 
 
-#if !USE_FLOAT
-static int32_t mulq16(int32_t a, int32_t b)
+#if USE_FLOAT
+static float multiply(float a, float b)
+{
+	return a * b;
+}
+#else
+static noinline int32_t multiply(int32_t a, int32_t b)
 {
 	int64_t x;
 
@@ -60,25 +65,27 @@ static int32_t mulq16(int32_t a, int32_t b)
 }
 #endif
 
+#define H2RGB_IMPL								\
+	if (h < f0_x)	/* modulo */						\
+		h += f1_1;							\
+	if (h > f1_1)								\
+		h -= f1_1;							\
+										\
+	if (h < f1_6)								\
+		ret = x + multiply((y - x), multiply(h, f6_1));			\
+	else if (h < f1_2)							\
+		ret = y;							\
+	else if (h < f2_3)							\
+		ret = x + multiply((y - x), multiply((f2_3 - h), f6_1));	\
+	else									\
+		ret = x;
+
 #if USE_FLOAT
 static uint16_t h2rgb(float x, float y, float h)
 {
 	float ret;
 
-	/* modulo */
-	if (h < f0_x)
-		h += f1_1;
-	if (h > f1_1)
-		h -= f1_1;
-
-	if (h < f1_6)
-		ret = x + ((y - x) * (h * f6_1));
-	else if (h < f1_2)
-		ret = y;
-	else if (h < f2_3)
-		ret = x + ((y - x) * ((f2_3 - h) * f6_1));
-	else
-		ret = x;
+	H2RGB_IMPL
 
 	if (ret < f0_x)
 		return 0u;
@@ -91,20 +98,7 @@ static uint16_t h2rgb(int32_t x, int32_t y, int32_t h)
 {
 	int32_t ret;
 
-	/* modulo */
-	if (h < f0_x)
-		h += f1_1;
-	if (h > f1_1)
-		h -= f1_1;
-
-	if (h < f1_6)
-		ret = x + mulq16((y - x), mulq16(h, f6_1));
-	else if (h < f1_2)
-		ret = y;
-	else if (h < f2_3)
-		ret = x + mulq16((y - x), mulq16((f2_3 - h), f6_1));
-	else
-		ret = x;
+	H2RGB_IMPL
 
 	return lim_u16(ret);
 }
@@ -117,39 +111,28 @@ void hsl2rgb(uint16_t *r, uint16_t *g, uint16_t *b,
 #if USE_FLOAT
 	float hh, ss, ll, x, y;
 
+	hh = multiply((float)h, (f1_1 / (float)UINT16_MAX));
+	ss = multiply((float)s, (f1_1 / (float)UINT16_MAX));
+	ll = multiply((float)l, (f1_1 / (float)UINT16_MAX));
+#else /* USE_FLOAT */
+	int32_t hh, ss, ll, x, y;
+
+	hh = (int32_t)h;
+	ss = (int32_t)s;
+	ll = (int32_t)l;
+#endif /* USE_FLOAT */
+
 	if (s == 0u) {
 		*r = *g = *b = l;
 	} else {
-		hh = (float)h * (f1_1 / (float)UINT16_MAX);
-		ss = (float)s * (f1_1 / (float)UINT16_MAX);
-		ll = (float)l * (f1_1 / (float)UINT16_MAX);
-
 		if (ll <= f1_2)
-			y = ll + (ll * ss);
+			y = ll + multiply(ll, ss);
 		else
-			y = (ll + ss) - (ll * ss);
+			y = (ll + ss) - multiply(ll, ss);
 		x = (ll + ll) - y;
 
 		*r = h2rgb(x, y, hh + f1_3);
 		*g = h2rgb(x, y, hh);
 		*b = h2rgb(x, y, hh - f1_3);
 	}
-
-#else /* USE_FLOAT */
-	int32_t x, y;
-
-	if (s == 0u) {
-		*r = *g = *b = l;
-	} else {
-		if (l <= f1_2)
-			y = (int32_t)l + mulq16(l, s);
-		else
-			y = ((int32_t)l + s) - mulq16(l, s);
-		x = ((int32_t)l + l) - y;
-
-		*r = h2rgb(x, y, (int32_t)h + f1_3);
-		*g = h2rgb(x, y, h);
-		*b = h2rgb(x, y, (int32_t)h - f1_3);
-	}
-#endif /* USE_FLOAT */
 }
