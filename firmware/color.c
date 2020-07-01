@@ -29,6 +29,7 @@
 
 /* Fractions of the value range. */
 #if USE_FLOAT
+  typedef float intermediate_t;
 # define f0_x	((float)(0.0f))
 # define f1_1	((float)(1.0f))
 # define f1_6	((float)(1.0f / 6.0f))
@@ -37,6 +38,7 @@
 # define f2_3	((float)(2.0f / 3.0f))
 # define f6_1	((float)(6.0f))
 #else
+  typedef int32_t intermediate_t;
 # define f0_x	((int32_t)0)
 # define f1_1	((int32_t)UINT16_MAX + 1)
 # define f1_6	(f1_1 / 6)
@@ -52,7 +54,7 @@ static float multiply(float a, float b)
 {
 	return a * b;
 }
-#else
+#else /* USE_FLOAT */
 static noinline int32_t multiply(int32_t a, int32_t b)
 {
 	int64_t x;
@@ -63,64 +65,61 @@ static noinline int32_t multiply(int32_t a, int32_t b)
 
 	return (int32_t)x;
 }
-#endif
+#endif /* USE_FLOAT */
 
-#define H2RGB_IMPL								\
-	if (h < f0_x)	/* modulo */						\
-		h += f1_1;							\
-	if (h > f1_1)								\
-		h -= f1_1;							\
-										\
-	if (h < f1_6)								\
-		ret = x + multiply((y - x), multiply(h, f6_1));			\
-	else if (h < f1_2)							\
-		ret = y;							\
-	else if (h < f2_3)							\
-		ret = x + multiply((y - x), multiply((f2_3 - h), f6_1));	\
-	else									\
+static intermediate_t scale_input(uint16_t value)
+{
+#if USE_FLOAT
+	return multiply((float)value, (f1_1 / (float)UINT16_MAX));
+#else /* USE_FLOAT */
+	return (int32_t)value;
+#endif /* USE_FLOAT */
+}
+
+static uint16_t scale_output(intermediate_t value)
+{
+#if USE_FLOAT
+	if (value < f0_x)
+		return 0u;
+	if (value > f1_1)
+		return UINT16_MAX;
+	return (uint16_t)multiply(value, (float)UINT16_MAX);
+#else /* USE_FLOAT */
+	return lim_u16(value);
+#endif /* USE_FLOAT */
+}
+
+static uint16_t h2rgb(intermediate_t x, intermediate_t y, intermediate_t h)
+{
+	intermediate_t ret;
+
+	/* modulo */
+	if (h < f0_x)
+		h += f1_1;
+	if (h > f1_1)
+		h -= f1_1;
+
+	if (h < f1_6)
+		ret = x + multiply((y - x), multiply(h, f6_1));
+	else if (h < f1_2)
+		ret = y;
+	else if (h < f2_3)
+		ret = x + multiply((y - x), multiply((f2_3 - h), f6_1));
+	else
 		ret = x;
 
-#if USE_FLOAT
-static uint16_t h2rgb(float x, float y, float h)
-{
-	float ret;
-
-	H2RGB_IMPL
-
-	if (ret < f0_x)
-		return 0u;
-	if (ret > f1_1)
-		return UINT16_MAX;
-	return (uint16_t)multiply(ret, (float)UINT16_MAX);
+	return scale_output(ret);
 }
-#else /* USE_FLOAT */
-static uint16_t h2rgb(int32_t x, int32_t y, int32_t h)
-{
-	int32_t ret;
-
-	H2RGB_IMPL
-
-	return lim_u16(ret);
-}
-#endif /* USE_FLOAT */
 
 /* Convert from HSL color model to RGB. */
 void hsl2rgb(uint16_t *r, uint16_t *g, uint16_t *b,
 	     uint16_t h, uint16_t s, uint16_t l)
 {
-#if USE_FLOAT
-	float hh, ss, ll, x, y;
+	intermediate_t hh, ss, ll, x, y;
 
-	hh = multiply((float)h, (f1_1 / (float)UINT16_MAX));
-	ss = multiply((float)s, (f1_1 / (float)UINT16_MAX));
-	ll = multiply((float)l, (f1_1 / (float)UINT16_MAX));
-#else /* USE_FLOAT */
-	int32_t hh, ss, ll, x, y;
-
-	hh = (int32_t)h;
-	ss = (int32_t)s;
-	ll = (int32_t)l;
-#endif /* USE_FLOAT */
+	hh = scale_input(h);
+	ss = scale_input(s);
+	ll = scale_input(l);
 
 	if (s == 0u) {
 		*r = *g = *b = l;
