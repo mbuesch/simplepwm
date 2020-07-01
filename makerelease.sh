@@ -33,7 +33,6 @@ do_build()
 	echo "Building configuration:  $*"
 	mkdir -p "$targetdir"
 
-	echo "$*" | tr '[:space:]' '\n' > "$targetdir/build_config.txt"
 	make -C "$fwdir" all "$@" C=1
 
 	echo "Fuse configuration:" > "$targetdir/fuses.txt"
