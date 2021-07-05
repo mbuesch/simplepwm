@@ -37,6 +37,7 @@ __all__ = [
     "SimplePWMMsg_Enterboot",
 ]
 
+from fractions import Fraction
 from libsimplepwm.crc import *
 from libsimplepwm.util import *
 

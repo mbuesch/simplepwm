@@ -87,27 +87,27 @@ def parse_pwmcorr(string):
     except (ValueError, ZeroDivisionError) as e:
         raise SimplePWMError("PWM correction parameter is invalid.")
 
+class ArgumentParserOrderedNamespace(argparse.Namespace):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        super().__setattr__("_setupDone", False)
+        super().__setattr__("_orderedArgs", [])
+
+    def __setattr__(self, name, value):
+        sanitizedName = name.replace("_", "-")
+        if (not self._setupDone and
+            sanitizedName in (n for n, v in self._orderedArgs)):
+            super().__setattr__("_setupDone", True)
+            del self._orderedArgs[:]
+        self._orderedArgs.append( (sanitizedName, value) )
+        super().__setattr__(name, value)
+
+    @property
+    def orderedArgs(self):
+        return self._orderedArgs if self._setupDone else ()
+
 def main():
     try:
-        class ArgumentParserOrderedNamespace(argparse.Namespace):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                super().__setattr__("_setupDone", False)
-                super().__setattr__("_orderedArgs", [])
-
-            def __setattr__(self, name, value):
-                sanitizedName = name.replace("_", "-")
-                if (not self._setupDone and
-                    sanitizedName in (n for n, v in self._orderedArgs)):
-                    super().__setattr__("_setupDone", True)
-                    del self._orderedArgs[:]
-                self._orderedArgs.append( (sanitizedName, value) )
-                super().__setattr__(name, value)
-
-            @property
-            def orderedArgs(self):
-                return self._orderedArgs if self._setupDone else ()
-
         p = argparse.ArgumentParser(description="SimplePWM remote control")
         p.add_argument("-p", "--ping", action="store_true",
                        help="Send a ping to the device and wait for pong reply.")

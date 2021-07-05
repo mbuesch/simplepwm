@@ -24,8 +24,10 @@ __all__ = [
 ]
 
 from libsimplepwm.util import *
+from libsimplepwm.crc import *
 import intelhex
 import serial
+import time
 
 class SimplePWMBoot(object):
     BOOTCMD_EXIT                    = 0x00
