@@ -48,23 +48,24 @@ class MainWindow(Gtk.Window):
             ttys.append([f"/dev/ttyUSB{i}"])
         for i in range(2):
             ttys.append([f"/dev/ttyS{i}"])
-        self.ttyCombo = Gtk.ComboBox.new_with_model_and_entry(ttys)
-        self.ttyCombo.set_entry_text_column(0)
-        self.ttyCombo.set_active(0)
-        grid.attach(self.ttyCombo, 0, 0, 1, 1)
+        self.__ttyCombo = Gtk.ComboBox.new_with_model_and_entry(ttys)
+        self.__ttyCombo.set_entry_text_column(0)
+        self.__ttyCombo.set_active(0)
+        grid.attach(self.__ttyCombo, 0, 0, 1, 1)
 
-        self.connectButton = Gtk.Button.new_with_mnemonic("_Connect")
-        grid.attach(self.connectButton, 1, 0, 1, 1)
+        self.__connectButton = Gtk.Button.new_with_mnemonic("_Connect")
+        grid.attach(self.__connectButton, 1, 0, 1, 1)
 
-        self.adjWidget = ColorAdjWidget()
-        grid.attach(self.adjWidget, 0, 1, 2, 1)
+        self.__adjWidget = ColorAdjWidget()
+        self.__adjWidget.set_sensitive(False)
+        grid.attach(self.__adjWidget, 0, 1, 2, 1)
 
-        self.connectButton.connect("clicked", self.__on_connect)
-        self.adjWidget.connect("colorChanged", self.__on_colorChanged)
+        self.__connectButton.connect("clicked", self.__on_connect)
+        self.__adjWidget.connect("colorChanged", self.__on_colorChanged)
         self.connect("destroy", Gtk.main_quit)
 
     def __getTTY(self):
-        return self.ttyCombo.get_model().get_value(self.ttyCombo.get_active_iter(), 0)
+        return self.__ttyCombo.get_model().get_value(self.__ttyCombo.get_active_iter(), 0)
 
     def __connect(self):
         if self.__comm:
@@ -83,6 +84,7 @@ class MainWindow(Gtk.Window):
     def __on_connect(self, _):
         try:
             r, g, b = self.__connect()
+            self.__adjWidget.set_sensitive(True)
         except SimplePWMError as e:
             printError(e)
             msg = Gtk.MessageDialog(parent=self,
@@ -94,9 +96,9 @@ class MainWindow(Gtk.Window):
             msg.show()
             return
         with self.__changeBlocked:
-            self.adjWidget.setRGB(round(r / 0xFFFF * 100),
-                                  round(g / 0xFFFF * 100),
-                                  round(b / 0xFFFF * 100))
+            self.__adjWidget.setRGB(round(r / 0xFFFF * 100),
+                                    round(g / 0xFFFF * 100),
+                                    round(b / 0xFFFF * 100))
         printInfo(f"Connected to {self.__getTTY()}.")
 
     def __on_colorChanged(self, _, mode, r, g, b, h, l, s):
@@ -130,5 +132,6 @@ class MainWindow(Gtk.Window):
                         continue
                 else:
                     setValuesTries = 0 # give up
+                    self.__adjWidget.set_sensitive(False)
 
 # vim: ts=4 sw=4 expandtab
