@@ -77,41 +77,42 @@ class SimplePWMMsg(object):
         magic, msgId = data[0:2]
         payload = data[3:-1]
         crc = data[-1]
+
         if magic != cls.MSG_MAGIC:
-            printError("Received corrupted message: Magic byte mismatch.")
+            raise SimplePWMError("Received corrupted message: Magic byte mismatch.")
         elif crc8(data[:-1]) != crc:
-            printError("Received corrupted message: CRC mismatch.")
-        else:
-            if msgId == cls.MSGID_NOP:
-                return SimplePWMMsg_Nop._parse(payload)
-            elif msgId == cls.MSGID_ACK:
-                return SimplePWMMsg_Ack._parse(payload)
-            elif msgId == cls.MSGID_NACK:
-                return SimplePWMMsg_Nack._parse(payload)
-            elif msgId == cls.MSGID_PING:
-                return SimplePWMMsg_Ping._parse(payload)
-            elif msgId == cls.MSGID_PONG:
-                return SimplePWMMsg_Pong._parse(payload)
-            elif msgId == cls.MSGID_GET_CONTROL:
-                return SimplePWMMsg_GetControl._parse(payload)
-            elif msgId == cls.MSGID_CONTROL:
-                return SimplePWMMsg_Control._parse(payload)
-            elif msgId == cls.MSGID_GET_SETPOINTS:
-                return SimplePWMMsg_SetSetpoints._parse(payload)
-            elif msgId == cls.MSGID_SETPOINTS:
-                return SimplePWMMsg_Setpoints._parse(payload)
-            elif msgId == cls.MSGID_GET_PWMCORR:
-                return SimplePWMMsg_GetPwmcorr._parse(payload)
-            elif msgId == cls.MSGID_PWMCORR:
-                return SimplePWMMsg_Pwmcorr._parse(payload)
-            elif msgId == cls.MSGID_GET_BATVOLT:
-                return SimplePWMMsg_GetBatvolt._parse(payload)
-            elif msgId == cls.MSGID_BATVOLT:
-                return SimplePWMMsg_Batvolt._parse(payload)
-            elif msgId == cls.MSGID_ENTERBOOT:
-                return SimplePWMMsg_Enterboot._parse(payload)
-            else:
-                printError(f"Received unknown message: 0x{msgId:X}")
+            raise SimplePWMError("Received corrupted message: CRC mismatch.")
+
+        if msgId == cls.MSGID_NOP:
+            return SimplePWMMsg_Nop._parse(payload)
+        elif msgId == cls.MSGID_ACK:
+            return SimplePWMMsg_Ack._parse(payload)
+        elif msgId == cls.MSGID_NACK:
+            return SimplePWMMsg_Nack._parse(payload)
+        elif msgId == cls.MSGID_PING:
+            return SimplePWMMsg_Ping._parse(payload)
+        elif msgId == cls.MSGID_PONG:
+            return SimplePWMMsg_Pong._parse(payload)
+        elif msgId == cls.MSGID_GET_CONTROL:
+            return SimplePWMMsg_GetControl._parse(payload)
+        elif msgId == cls.MSGID_CONTROL:
+            return SimplePWMMsg_Control._parse(payload)
+        elif msgId == cls.MSGID_GET_SETPOINTS:
+            return SimplePWMMsg_SetSetpoints._parse(payload)
+        elif msgId == cls.MSGID_SETPOINTS:
+            return SimplePWMMsg_Setpoints._parse(payload)
+        elif msgId == cls.MSGID_GET_PWMCORR:
+            return SimplePWMMsg_GetPwmcorr._parse(payload)
+        elif msgId == cls.MSGID_PWMCORR:
+            return SimplePWMMsg_Pwmcorr._parse(payload)
+        elif msgId == cls.MSGID_GET_BATVOLT:
+            return SimplePWMMsg_GetBatvolt._parse(payload)
+        elif msgId == cls.MSGID_BATVOLT:
+            return SimplePWMMsg_Batvolt._parse(payload)
+        elif msgId == cls.MSGID_ENTERBOOT:
+            return SimplePWMMsg_Enterboot._parse(payload)
+
+        printError(f"Received unknown message: 0x{msgId:X}")
         return None
 
     @classmethod
