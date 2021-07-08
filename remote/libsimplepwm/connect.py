@@ -67,7 +67,7 @@ class SimplePWM(object):
         self.__wakeup()
 
     def __synchronize(self):
-        self.__tx_8bit(SimplePWMMsg.MSG_SYNCBYTE * SimplePWMMsg.SIZE)
+        self.__tx_8bit(SimplePWMMsg.MSG_SYNCBYTE * (SimplePWMMsg.SIZE + 1))
         self.__rxBuf.clear()
         self.__rxByte = 0
 
