@@ -31,7 +31,7 @@ from libsimplepwm.util import *
 import sys
 
 class MainWindow(Gtk.Window):
-    def __init__(self):
+    def __init__(self, connectTo=None):
         super().__init__(title="Simple PWM controller - Remote")
 
         self.__changeBlocked = Blocker()
@@ -44,10 +44,16 @@ class MainWindow(Gtk.Window):
         self.add(grid)
 
         ttys = Gtk.ListStore(str)
+        if connectTo:
+            ttys.append([connectTo])
         for i in range(4):
-            ttys.append([f"/dev/ttyUSB{i}"])
+            tty = f"/dev/ttyUSB{i}"
+            if tty != connectTo:
+                ttys.append([tty])
         for i in range(2):
-            ttys.append([f"/dev/ttyS{i}"])
+            tty = f"/dev/ttyS{i}"
+            if tty != connectTo:
+                ttys.append([tty])
         self.__ttyCombo = Gtk.ComboBox.new_with_model_and_entry(ttys)
         self.__ttyCombo.set_entry_text_column(0)
         self.__ttyCombo.set_active(0)
@@ -63,6 +69,9 @@ class MainWindow(Gtk.Window):
         self.__connectButton.connect("clicked", self.__on_connect)
         self.__adjWidget.connect("colorChanged", self.__on_colorChanged)
         self.connect("destroy", Gtk.main_quit)
+
+        if connectTo:
+            self.__on_connect(None)
 
     def __getTTY(self):
         return self.__ttyCombo.get_model().get_value(self.__ttyCombo.get_active_iter(), 0)

@@ -20,11 +20,18 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-import sys
 from libsimplepwm.gui import *
+import argparse
+import sys
 
 def main():
-    mainwnd = MainWindow()
+    p = argparse.ArgumentParser(description="SimplePWM remote control")
+    p.add_argument("port", nargs="?", type=str,
+                   default=None,
+                   help="Serial port.")
+    args = p.parse_args()
+
+    mainwnd = MainWindow(connectTo=args.port)
     mainwnd.show_all()
     Gtk.main()
     return 0
