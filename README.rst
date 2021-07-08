@@ -95,10 +95,23 @@ FEAT_BOOT        0-1     depends on DEV  Enable bootloader and firmware updating
 ===============  ======  ==============  ================================================================
 
 
-Flashing the firmware after build
-=================================
+Flashing the firmware via serial bootloader after build
+=======================================================
 
-Run the following commands to flash the firmware to the target microcontroller:
+Run the following commands to flash the firmware via serial bootloader to the target microcontroller.
+
+This only works, if there's already a previous version of SimplePWM running on the chip. If the chip is blank, refer to ISP flashing below.
+
+.. code:: sh
+
+	cd firmware
+	./flash-usb.sh /dev/ttyUSB0
+
+
+Flashing the firmware via ISP adapter after build
+=================================================
+
+Run the following commands to flash the firmware via ISP (In System Programmer hardware adapter) to the target microcontroller:
 
 .. code:: sh
 
