@@ -68,7 +68,9 @@ class MainWindow(Gtk.Window):
 
     def __connect(self):
         try:
-            self.__comm = SimplePWM(port=self.__getTTY(), timeout=0.1)
+            self.__comm = SimplePWM(port=self.__getTTY(),
+                                    dumpDataStream=False,
+                                    timeout=0.1)
             r, g, b = self.__comm.getRGB()
         except SimplePWMError as e:
             self.__comm = None

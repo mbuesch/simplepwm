@@ -167,6 +167,7 @@ def main():
 
         s = SimplePWM(port=str(args.port),
                       dumpDebugStream=args.debug_device,
+                      dumpDataStream=False,
                       recoveryMode=(args.write_flash or args.write_eeprom))
 
         repeat = True

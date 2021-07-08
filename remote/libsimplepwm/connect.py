@@ -27,6 +27,7 @@ from collections import deque
 from libsimplepwm.bootloader import *
 from libsimplepwm.messages import *
 from libsimplepwm.util import *
+import binascii
 import serial
 import time
 
@@ -46,6 +47,7 @@ class SimplePWM(object):
                  port="/dev/ttyUSB0",
                  timeout=1.0,
                  dumpDebugStream=False,
+                 dumpDataStream=False,
                  recoveryMode=False):
         try:
             self.__serial = serial.Serial(port=port,
@@ -59,6 +61,7 @@ class SimplePWM(object):
         self.__recoveryMode = recoveryMode
         self.__timeout = timeout
         self.__dumpDebugStream = dumpDebugStream
+        self.__dumpDataStream = dumpDataStream
         self.__rxByte = 0
         self.__rxBuf = bytearray()
         self.__rxMsgs = deque()
@@ -95,7 +98,8 @@ class SimplePWM(object):
 
     def __tx_8bit(self, data):
         self.__wakeup()
-#        printDebug(f"TX: {bytes(data)}")
+        if self.__dumpDataStream:
+            printInfo(f"TX: {binascii.hexlify(data).decode('ascii')}")
         for d in data:
             lo = ((d & self.MSK_4BIT) |
                   self.FLG_8BIT)
@@ -117,7 +121,6 @@ class SimplePWM(object):
             self.__debugBuf.clear()
 
     def __rx_8bit(self, dataByte):
-#        printDebug(f"RX: {dataByte}")
         d = dataByte[0]
         if d & self.FLG_8BIT_UPPER:
             data = (self.__rxByte & self.MSK_4BIT)
@@ -125,6 +128,8 @@ class SimplePWM(object):
             self.__rxByte = 0
             self.__rxBuf.append(data)
             if len(self.__rxBuf) >= SimplePWMMsg.SIZE:
+                if self.__dumpDataStream:
+                    printInfo(f"RX: {binascii.hexlify(self.__rxBuf).decode('ascii')}")
                 rxMsg = SimplePWMMsg.parse(self.__rxBuf)
                 self.__rxBuf.clear()
                 if rxMsg:
