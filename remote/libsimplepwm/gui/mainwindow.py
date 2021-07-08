@@ -67,6 +67,9 @@ class MainWindow(Gtk.Window):
         return self.ttyCombo.get_model().get_value(self.ttyCombo.get_active_iter(), 0)
 
     def __connect(self):
+        if self.__comm:
+            self.__comm.disconnect()
+            self.__comm = None
         try:
             self.__comm = SimplePWM(port=self.__getTTY(),
                                     dumpDataStream=False,

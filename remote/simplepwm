@@ -107,6 +107,7 @@ class ArgumentParserOrderedNamespace(argparse.Namespace):
         return self._orderedArgs if self._setupDone else ()
 
 def main():
+    s = None
     try:
         p = argparse.ArgumentParser(description="SimplePWM remote control")
         p.add_argument("-p", "--ping", action="store_true",
@@ -238,10 +239,15 @@ def main():
                 repeat = False
         if args.debug_device:
             s.dumpDebugStream()
+        s.disconnect()
     except SimplePWMError as e:
+        if s:
+            s.disconnect()
         printError(e)
         return 1
     except KeyboardInterrupt as e:
+        if s:
+            s.disconnect()
         printInfo("Interrupted.")
         return 1
     return 0

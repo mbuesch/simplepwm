@@ -69,6 +69,15 @@ class SimplePWM(object):
         self.__nextSyncTime = time.monotonic()
         self.__wakeup()
 
+    def disconnect(self):
+        if self.__serial is not None:
+            try:
+                self.__serial.close()
+            except Exception:
+                pass
+            finally:
+                self.__serial = None
+
     def __synchronize(self):
         self.__tx_8bit(SimplePWMMsg.MSG_SYNCBYTE * (SimplePWMMsg.SIZE + 1))
         self.__rxBuf.clear()
@@ -108,6 +117,8 @@ class SimplePWM(object):
                   self.FLG_8BIT_UPPER)
             sendBytes = bytes( (lo, hi) )
             try:
+                if self.__serial is None:
+                    raise SimplePWMError("Serial bus disconnected.")
                 self.__serial.write(sendBytes)
             except serial.SerialException as e:
                 raise SimplePWMError(f"Serial bus exception:\n{e}")
@@ -149,6 +160,8 @@ class SimplePWM(object):
         if timeout < 0:
             timeout = self.__timeout
         try:
+            if self.__serial is None:
+                raise SimplePWMError("Serial bus disconnected.")
             self.__serial.timeout = timeout
             dataByte = self.__serial.read(1)
         except serial.SerialException as e:
@@ -287,12 +300,16 @@ class SimplePWM(object):
         return (rxMsg.meas, rxMsg.drop)
 
     def writeFlash(self, imageFile, timeout=None):
+        if self.__serial is None:
+            raise SimplePWMError("Serial bus disconnected.")
         boot = SimplePWMBoot(self.__serial)
         boot.loadImage(imageFile)
         self.__tx_message(SimplePWMMsg_Enterboot())
         boot.writeFlash()
 
     def writeEeprom(self, imageFile, timeout=None):
+        if self.__serial is None:
+            raise SimplePWMError("Serial bus disconnected.")
         boot = SimplePWMBoot(self.__serial)
         boot.loadImage(imageFile)
         self.__tx_message(SimplePWMMsg_Enterboot())
