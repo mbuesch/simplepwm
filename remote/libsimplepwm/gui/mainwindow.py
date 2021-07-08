@@ -63,26 +63,28 @@ class MainWindow(Gtk.Window):
         self.adjWidget.connect("colorChanged", self.__on_colorChanged)
         self.connect("destroy", Gtk.main_quit)
 
+    def __getTTY(self):
+        return self.ttyCombo.get_model().get_value(self.ttyCombo.get_active_iter(), 0)
+
     def __connect(self):
-        tty = self.ttyCombo.get_model().get_value(self.ttyCombo.get_active_iter(), 0)
         try:
-            self.__comm = SimplePWM(port=tty, timeout=0.1)
+            self.__comm = SimplePWM(port=self.__getTTY(), timeout=0.1)
             r, g, b = self.__comm.getRGB()
         except SimplePWMError as e:
             self.__comm = None
             raise e
-        return tty, r, g, b
+        return r, g, b
 
     def __on_connect(self, _):
         try:
-            tty, r, g, b = self.__connect()
+            r, g, b = self.__connect()
         except SimplePWMError as e:
             printError(e)
             msg = Gtk.MessageDialog(parent=self,
                                     flags=Gtk.DialogFlags.MODAL,
                                     type=Gtk.MessageType.ERROR,
                                     buttons=Gtk.ButtonsType.OK,
-                                    text=f"Failed to connect to {tty}:\n{e}")
+                                    text=f"Failed to connect to {self.__getTTY()}:\n{e}")
             msg.connect("response", lambda w, r: msg.destroy())
             msg.show()
             return
@@ -90,7 +92,7 @@ class MainWindow(Gtk.Window):
             self.adjWidget.setRGB(round(r / 0xFFFF * 100),
                                   round(g / 0xFFFF * 100),
                                   round(b / 0xFFFF * 100))
-        printInfo(f"Connected to {tty}.")
+        printInfo(f"Connected to {self.__getTTY()}.")
 
     def __on_colorChanged(self, _, mode, r, g, b, h, l, s):
         if not self.__comm:
