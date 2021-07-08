@@ -113,7 +113,7 @@ Or alternatively use any other of the available AVR flashing tools to program th
 License
 =======
 
-Copyright (c) 2018-2020 Michael Buesch <m@bues.ch>
+Copyright (c) 2018-2021 Michael Buesch <m@bues.ch>
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
 
