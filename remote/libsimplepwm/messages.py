@@ -76,11 +76,10 @@ class SimplePWMMsg(object):
         assert len(data) == cls.SIZE
         magic, msgId = data[0:2]
         payload = data[3:-1]
-        crc = data[-1]
 
         if magic != cls.MSG_MAGIC:
             raise SimplePWMError("Received corrupted message: Magic byte mismatch.")
-        elif crc8(data[:-1]) != crc:
+        if crc8(data[:-1]) != data[-1]:
             raise SimplePWMError("Received corrupted message: CRC mismatch.")
 
         if msgId == cls.MSGID_NOP:
